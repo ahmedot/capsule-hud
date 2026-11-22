@@ -141,17 +141,16 @@ internal sealed class HudPresenter
     {
         var settings = _settings();
         var hwnd = new WindowInteropHelper(_window).Handle;
-        var work = NativeMethods.GetWorkArea(settings.HudScreen == HudScreen.MousePointer);
+        var work = NativeMethods.GetWorkArea(settings.HudScreen == HudScreen.MousePointer, out var scale);
         const uint flags = NativeMethods.SwpNoSize | NativeMethods.SwpNoActivate;
 
-        // Move onto the target screen first so WPF picks up that screen's scaling, then measure.
-        NativeMethods.SetWindowPos(hwnd, NativeMethods.HwndTopmost, work.Left, work.Top, 0, 0, flags);
+        // Size in pixels on the target screen, worked out from that screen's scaling. The window goes straight to
+        // its spot: it never takes a detour that could flash on screen. (If the screen's scaling differs, WPF
+        // resizes the window after the move and SizeChanged places it again.)
         _window.UpdateLayout();
-
-        var dpi = VisualTreeHelper.GetDpi(_window);
-        var width = (int)Math.Ceiling(_window.ActualWidth * dpi.DpiScaleX);
-        var height = (int)Math.Ceiling(Math.Min(_window.ActualHeight, _window.MaxHeight) * dpi.DpiScaleY);
-        var gap = (int)Math.Round(EdgeGap * dpi.DpiScaleY);
+        var width = (int)Math.Ceiling(_window.ActualWidth * scale);
+        var height = (int)Math.Ceiling(Math.Min(_window.ActualHeight, _window.MaxHeight) * scale);
+        var gap = (int)Math.Round(EdgeGap * scale);
 
         var x = settings.HudPosition switch
         {

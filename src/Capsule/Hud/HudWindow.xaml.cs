@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using Capsule.Interop;
+using Capsule.Core;
 using Capsule.Settings;
 using Microsoft.Win32;
 
@@ -198,7 +199,10 @@ public partial class HudWindow : Window
     {
         var light = settings.HudTheme == HudTheme.Light
             || (settings.HudTheme == HudTheme.System && IsWindowsLight());
-        var accent = HudItems.ParseColor(settings.HudAccent, Color.FromRgb(0x34, 0xD1, 0x7A));
+        var followWindows = AppSettings.IsWindowsAccent(settings.HudAccent);
+        var accent = followWindows
+            ? (light ? WindowsAccent.ForLight : WindowsAccent.ForDark)
+            : HudItems.ParseColor(settings.HudAccent, Color.FromRgb(0x34, 0xD1, 0x7A));
 
         if (light)
         {
@@ -208,7 +212,7 @@ public partial class HudWindow : Window
             SetBrush("HudSubtext", Color.FromArgb(0xA6, 0x17, 0x18, 0x1C));
             SetBrush("HudTrack", Color.FromArgb(0x1C, 0, 0, 0));
             SetBrush("HudChip", Color.FromArgb(0x0F, 0, 0, 0));
-            accent = Darken(accent, 0.18);
+            if (!followWindows) accent = Darken(accent, 0.18); // the Windows shade for light backgrounds is already darker
         }
         else
         {

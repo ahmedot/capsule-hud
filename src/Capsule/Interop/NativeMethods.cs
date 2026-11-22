@@ -53,8 +53,12 @@ internal static class NativeMethods
     }
 
     /// <summary>Work area (screen minus taskbar), in physical pixels, of the chosen screen.</summary>
-    public static Rect GetWorkArea(bool screenWithMouse)
+    public static Rect GetWorkArea(bool screenWithMouse) => GetWorkArea(screenWithMouse, out _);
+
+    /// <summary>The work area of the target screen and that screen's scale (1.0 = 100%), without moving any window.</summary>
+    public static Rect GetWorkArea(bool screenWithMouse, out double scale)
     {
+        scale = 1.0;
         var monitor = IntPtr.Zero;
         if (screenWithMouse && GetCursorPos(out var cursor))
         {
@@ -66,9 +70,23 @@ internal static class NativeMethods
             monitor = MonitorFromPoint(default, MonitorDefaultToPrimary);
         }
 
+        try
+        {
+            if (GetDpiForMonitor(monitor, MdtEffectiveDpi, out var dpiX, out _) == 0 && dpiX > 0) scale = dpiX / 96.0;
+        }
+        catch (EntryPointNotFoundException)
+        {
+            // Very old Windows: assume 100%.
+        }
+
         var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
         return GetMonitorInfo(monitor, ref info) ? info.Work : new Rect { Right = 1920, Bottom = 1040 };
     }
+
+    private const int MdtEffectiveDpi = 0;
+
+    [DllImport("shcore.dll")]
+    private static extern int GetDpiForMonitor(IntPtr monitor, int dpiType, out uint dpiX, out uint dpiY);
 
     private static IntPtr GetWindowLongPtr(IntPtr hwnd, int index) =>
         IntPtr.Size == 8 ? GetWindowLongPtr64(hwnd, index) : new IntPtr(GetWindowLong32(hwnd, index));

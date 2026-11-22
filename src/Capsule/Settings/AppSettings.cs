@@ -39,7 +39,9 @@ public enum AppTheme { System, Light, Dark }
 
 public sealed class AppSettings
 {
-    public const string DefaultAccent = "#34D17A";
+    /// <summary>Accent value meaning "use the Windows accent colour" (the default).</summary>
+    public const string WindowsAccent = "windows";
+    public const string DefaultAccent = WindowsAccent;
     public const double MinSeconds = 1.0;
     public const double MaxSeconds = 6.0;
     private const int MaxNames = 64;
@@ -98,7 +100,10 @@ public sealed class AppSettings
     public int DeviceBatteryAlertPercent { get; set; } = 15;
 
     /// <summary>Experimental: keep the built-in Windows volume/brightness pop-up hidden.</summary>
-    public bool HideWindowsOsd { get; set; }
+    public bool HideWindowsOsd { get; set; } = true;
+
+    /// <summary>Hide a keyboard app's own Caps Lock / Num Lock pop-up so only Capsule's shows.</summary>
+    public bool HideDuplicatePopups { get; set; } = true;
 
     public HudPosition HudPosition { get; set; } = HudPosition.BottomCenter;
     public HudScreen HudScreen { get; set; } = HudScreen.MousePointer;
@@ -177,11 +182,15 @@ public sealed class AppSettings
         DiskFreeAlertGb = Math.Clamp(DiskFreeAlertGb, 1, 500);
         DeviceBatteryAlertPercent = Math.Clamp(DeviceBatteryAlertPercent, 5, 50);
 
-        if (!IsColor(HudAccent)) HudAccent = DefaultAccent;
+        if (IsWindowsAccent(HudAccent)) HudAccent = WindowsAccent;
+        else if (!IsColor(HudAccent)) HudAccent = DefaultAccent;
         HudSeconds = double.IsFinite(HudSeconds) ? Math.Clamp(HudSeconds, MinSeconds, MaxSeconds) : 2.0;
         Version = 1;
         return this;
     }
+
+    public static bool IsWindowsAccent(string? value) =>
+        string.Equals(value, WindowsAccent, StringComparison.OrdinalIgnoreCase);
 
     public static bool IsColor(string? value) =>
         value is not null && Regex.IsMatch(value, "^#[0-9A-Fa-f]{6}$");

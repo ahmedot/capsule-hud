@@ -35,6 +35,7 @@ public partial class App : Application
     private BrightnessWatcher? _brightness;
     private MediaWatcher? _media;
     private WindowsOsdHider? _osdHider;
+    private DuplicatePopupHider? _duplicateHider;
     private SystemMonitor? _system;
     private PowerWatcher? _power;
     private KeyboardLanguageWatcher? _keyboard;
@@ -99,9 +100,68 @@ public partial class App : Application
             return;
         }
 
-        var quit = e.Args.Contains(QuitArgument, StringComparer.OrdinalIgnoreCase);
-        var updated = e.Args.Contains(Updater.UpdatedArgument, StringComparer.Ordinal);
-        if (quit || !AcquireInstance(waitForPrevious: updated))
+        if (HasArgument(e.Args, Installer.UninstallArgument))
+        {
+            Installer.Uninstall(HasArgument(e.Args, Installer.QuietArgument), QuitRunningCopy, RunningCopyGone);
+            Shutdown();
+            return;
+        }
+
+        if (!HasArgument(e.Args, QuitArgument) && !HasArgument(e.Args, Updater.UpdatedArgument)
+            && Installer.ShouldInstall(e.Args))
+        {
+            if (Installer.Compare() == Installer.State.Newer)
+            {
+                // A newer Capsule is already installed: just open it rather than going back a version.
+                try
+                {
+                    Installer.LaunchInstalled(argument: null);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("Could not start the installed Capsule", ex);
+                }
+
+                Shutdown();
+                return;
+            }
+
+            if (HasArgument(e.Args, Installer.InstallArgument))
+            {
+                // Silent install for IT admins and package managers: no window, then start Capsule.
+                try
+                {
+                    var startWithWindows = Installer.Compare() == Installer.State.NotInstalled
+                        || AutoStart.IsEnabledFor(Installer.InstalledExe);
+                    Installer.Install(startWithWindows, QuitRunningCopy, RunningCopyGone);
+                    Installer.LaunchInstalled(Installer.InstalledArgument);
+                    Shutdown();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("Silent install failed", ex);
+                    Shutdown(1);
+                }
+
+                return;
+            }
+
+            new InstallerWindow(this, e.Args).Show();
+            return;
+        }
+
+        StartCapsule(e.Args);
+    }
+
+    private static bool HasArgument(string[] args, string name) => args.Contains(name, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Starts the tray app. Also called by the installer window for "Try it without installing".</summary>
+    internal void StartCapsule(string[] args)
+    {
+        var quit = HasArgument(args, QuitArgument);
+        var updated = HasArgument(args, Updater.UpdatedArgument);
+        var installed = HasArgument(args, Installer.InstalledArgument);
+        if (quit || !AcquireInstance(waitForPrevious: updated || installed))
         {
             SignalRunningCopy(quit ? QuitSignalName : ShowSignalName);
             Shutdown();
@@ -109,13 +169,14 @@ public partial class App : Application
         }
 
         Efficiency.Enable();
-        var atSignIn = e.Args.Contains(AutoStart.StartupArgument, StringComparer.OrdinalIgnoreCase);
+        var atSignIn = HasArgument(args, AutoStart.StartupArgument);
         var firstRun = !SettingsStore.Exists;
         Settings = SettingsStore.Load();
         ApplyAppTheme();
-        Log.Info($"Capsule {Version} starting{(atSignIn ? " at sign-in" : "")}{(updated ? " after an update" : "")}");
+        Log.Info($"Capsule {Version} starting{(atSignIn ? " at sign-in" : "")}{(updated ? " after an update" : "")}{(installed ? " after installing" : "")}");
         Log.Info(HudWindow.HasGpu ? "HUD draws on the GPU" : "No GPU acceleration available; HUD draws in software");
-        if (updated) Updater.CleanUpAfterUpdate();
+        if (updated || installed) Updater.CleanUpAfterUpdate();
+        Installer.RefreshAppsEntry();
 
         _showSignal = CreateSignal(ShowSignalName);
         if (_showSignal is not null)
@@ -151,9 +212,14 @@ public partial class App : Application
         };
         _updateTimer.Start();
 
-        if (firstRun)
+        if (firstRun) SettingsStore.Save(Settings);
+        if (installed)
         {
-            SettingsStore.Save(Settings);
+            // Straight after the installer: a friendly hello in the real HUD, nothing to set up.
+            Show(HudItems.Info(Glyphs.Checkmark, "Capsule is ready", "Enjoy", HudTone.Good));
+        }
+        else if (firstRun)
+        {
             ShowSettings();
         }
         else if (updated)
@@ -162,7 +228,7 @@ public partial class App : Application
         }
         else if (!atSignIn)
         {
-            Show(HudItems.Message("Capsule is running", "In the tray"));
+            ShowSettings();
         }
 
         // Hand back the memory used while starting up.
@@ -179,75 +245,15 @@ public partial class App : Application
         _hud = new HudPresenter(() => Settings);
         _switcher = new AutoSwitcher(Audio, () => Settings, Dispatcher);
         _volume = new VolumeWatcher(Audio, Dispatcher);
-        _controllers = new ControllerWatcher(Dispatcher, () => Settings);
         _notifications = new AudioNotifications(Dispatcher);
-        _lockKeys = new LockKeyWatcher(Dispatcher);
-        _brightness = new BrightnessWatcher(Dispatcher);
-        _media = new MediaWatcher(Dispatcher, () => Settings.HudEnabled && Settings.HudMedia);
         _osdHider = new WindowsOsdHider(Dispatcher);
-        _system = new SystemMonitor(Dispatcher, () => Settings);
-        _power = new PowerWatcher(Dispatcher);
-        _keyboard = new KeyboardLanguageWatcher(Dispatcher);
-        _privacy = new PrivacyWatcher(Dispatcher);
-        _drives = new DriveWatcher(Dispatcher);
-        _network = new NetworkWatcher(Dispatcher);
         _osdHider.SetEnabled(Settings.HideWindowsOsd);
-
-        _lockKeys.Changed += (key, on) =>
-        {
-            if (Settings.HudLockKeys) Show(HudItems.LockKey(key, on));
-        };
-        _brightness.Changed += percent =>
-        {
-            _osdHider.Arm();
-            if (Settings.HudBrightness) Show(HudItems.Brightness(percent));
-        };
-        _media.Changed += media =>
-        {
-            _osdHider.Arm();
-            if (Settings.HudMedia) Show(HudItems.Media(media.Title, media.Artist, media.Playing, media.Art));
-        };
-        _system.Alert += alert =>
-        {
-            var glyph = alert.Kind switch
-            {
-                HealthKind.Disk => Glyphs.HardDrive,
-                HealthKind.GpuHot or HealthKind.Throttling => Glyphs.Warning,
-                _ => Glyphs.Gauge,
-            };
-            Show(HudItems.Info(glyph, alert.Title, alert.Status, HudTone.Bad));
-        };
-        _power.Changed += (title, status, percent, warning) =>
-        {
-            if (!Settings.HudPower) return;
-            var item = HudItems.Info(warning ? Glyphs.Warning : Glyphs.Charging, title, status, warning ? HudTone.Bad : HudTone.Good);
-            item.Battery = percent;
-            Show(item);
-        };
-        _keyboard.Changed += (language, code) =>
-        {
-            if (Settings.HudKeyboard) Show(HudItems.Info(Glyphs.Globe, language, code, HudTone.Good, replaceKey: "keyboard"));
-        };
-        _privacy.Changed += (device, app, inUse) =>
-        {
-            if (!Settings.HudPrivacy) return;
-            var glyph = device == "Camera" ? Glyphs.Camera : Glyphs.Microphone;
-            Show(HudItems.Info(glyph, inUse ? $"{device} in use" : $"{device} off", app, inUse ? HudTone.Bad : HudTone.Neutral));
-        };
-        _drives.Changed += (name, details, connected) =>
-        {
-            if (Settings.HudUsb) Show(HudItems.Info(Glyphs.Usb, name, details, connected ? HudTone.Good : HudTone.Neutral));
-        };
-        _network.Changed += (glyph, title, status, good) =>
-        {
-            if (Settings.HudNetwork) Show(HudItems.Info(glyph, title, status, good ? HudTone.Good : HudTone.Bad, replaceKey: "network"));
-        };
+        _duplicateHider = new DuplicatePopupHider(Dispatcher) { Enabled = Settings.HideDuplicatePopups };
 
         _switcher.HeadphonesChanged += OnHeadphonesChanged;
         _switcher.Switched += () => _volume.BeQuiet();
         _volume.VolumeChanged += OnVolumeChanged;
         _volume.MicMuteChanged += OnMicMuteChanged;
-        _controllers.Changed += OnControllerChanged;
         _notifications.EndpointChanged += id =>
         {
             _switcher.OnEndpointChanged(id);
@@ -264,16 +270,174 @@ public partial class App : Application
         Audio.Register(_notifications);
         _switcher.Start(atSignIn);
         _volume.Refresh();
-        _controllers.Start();
-        _brightness.Start();
-        _media.Start();
-        _system.Start();
-        _privacy.Start();
-        _drives.Start();
-        _network.Start();
+        ApplyWatchers();
+    }
 
-        _deviceBatteryTimer = new DispatcherTimer(TimeSpan.FromMinutes(10), DispatcherPriority.Background,
-            (_, _) => CheckDeviceBatteries(), Dispatcher);
+    // ------------------------------------------------------------------ watchers follow the settings
+
+    /// <summary>
+    /// Runs only the watchers whose HUD is switched on. Turning a HUD off stops its watcher straight away (timers,
+    /// polling and Windows subscriptions), so nothing keeps working in the background for it.
+    /// </summary>
+    private void ApplyWatchers()
+    {
+        var s = Settings;
+        var hud = s.HudEnabled && _sessionActive;
+        Keep(ref _lockKeys, hud && s.HudLockKeys, CreateLockKeys);
+        Keep(ref _brightness, hud && s.HudBrightness, CreateBrightness);
+        Keep(ref _media, hud && s.HudMedia, CreateMedia);
+        Keep(ref _keyboard, hud && s.HudKeyboard, CreateKeyboard);
+        Keep(ref _privacy, hud && s.HudPrivacy, CreatePrivacy);
+        Keep(ref _drives, hud && s.HudUsb, CreateDrives);
+        Keep(ref _network, hud && s.HudNetwork, CreateNetwork);
+        Keep(ref _power, hud && s.HudPower, CreatePower);
+        Keep(ref _system, hud && (s.HudCpuGpu || s.HudHeat || s.HudMemoryDisk), CreateSystem);
+        // Controllers feed their own HUD and the "controller battery low" warning.
+        Keep(ref _controllers, hud && (s.HudControllers || s.HudPower), CreateControllers);
+
+        var batteryChecks = hud && s.HudPower;
+        if (batteryChecks && _deviceBatteryTimer is null)
+        {
+            _deviceBatteryTimer = new DispatcherTimer(TimeSpan.FromMinutes(10), DispatcherPriority.Background,
+                (_, _) => CheckDeviceBatteries(), Dispatcher);
+        }
+        else if (!batteryChecks && _deviceBatteryTimer is not null)
+        {
+            _deviceBatteryTimer.Stop();
+            _deviceBatteryTimer = null;
+        }
+    }
+
+    private static void Keep<T>(ref T? watcher, bool wanted, Func<T> create) where T : class, IDisposable
+    {
+        if (wanted && watcher is null)
+        {
+            watcher = create();
+        }
+        else if (!wanted && watcher is not null)
+        {
+            watcher.Dispose();
+            watcher = null;
+        }
+    }
+
+    private LockKeyWatcher CreateLockKeys()
+    {
+        var w = new LockKeyWatcher(Dispatcher);
+        w.Changed += (key, on) =>
+        {
+            if (!Settings.HudLockKeys) return;
+            _duplicateHider?.Arm(); // only Capsule's pop-up should show
+            Show(HudItems.LockKey(key, on));
+        };
+        return w;
+    }
+
+    private BrightnessWatcher CreateBrightness()
+    {
+        var w = new BrightnessWatcher(Dispatcher);
+        w.Changed += percent =>
+        {
+            _osdHider?.Arm();
+            if (Settings.HudBrightness) Show(HudItems.Brightness(percent));
+        };
+        w.Start();
+        return w;
+    }
+
+    private MediaWatcher CreateMedia()
+    {
+        var w = new MediaWatcher(Dispatcher, () => Settings.HudEnabled && Settings.HudMedia);
+        w.Changed += media =>
+        {
+            _osdHider?.Arm();
+            if (Settings.HudMedia) Show(HudItems.Media(media.Title, media.Artist, media.Playing, media.Art));
+        };
+        w.Start();
+        return w;
+    }
+
+    private KeyboardLanguageWatcher CreateKeyboard()
+    {
+        var w = new KeyboardLanguageWatcher(Dispatcher);
+        w.Changed += (language, code) =>
+        {
+            if (Settings.HudKeyboard) Show(HudItems.Info(Glyphs.Globe, language, code, HudTone.Good, replaceKey: "keyboard"));
+        };
+        return w;
+    }
+
+    private PrivacyWatcher CreatePrivacy()
+    {
+        var w = new PrivacyWatcher(Dispatcher);
+        w.Changed += (device, app, inUse) =>
+        {
+            if (!Settings.HudPrivacy) return;
+            var glyph = device == "Camera" ? Glyphs.Camera : Glyphs.Microphone;
+            Show(HudItems.Info(glyph, inUse ? $"{device} in use" : $"{device} not in use", app, inUse ? HudTone.Bad : HudTone.Neutral));
+        };
+        w.Start();
+        return w;
+    }
+
+    private DriveWatcher CreateDrives()
+    {
+        var w = new DriveWatcher(Dispatcher);
+        w.Changed += (name, details, connected) =>
+        {
+            if (Settings.HudUsb) Show(HudItems.Info(Glyphs.Usb, name, details, connected ? HudTone.Good : HudTone.Neutral));
+        };
+        w.Start();
+        return w;
+    }
+
+    private NetworkWatcher CreateNetwork()
+    {
+        var w = new NetworkWatcher(Dispatcher);
+        w.Changed += (glyph, title, status, good) =>
+        {
+            if (Settings.HudNetwork) Show(HudItems.Info(glyph, title, status, good ? HudTone.Good : HudTone.Bad, replaceKey: "network"));
+        };
+        w.Start();
+        return w;
+    }
+
+    private PowerWatcher CreatePower()
+    {
+        var w = new PowerWatcher(Dispatcher);
+        w.Changed += (title, status, percent, warning) =>
+        {
+            if (!Settings.HudPower) return;
+            var item = HudItems.Info(warning ? Glyphs.Warning : Glyphs.Charging, title, status, warning ? HudTone.Bad : HudTone.Good);
+            item.Battery = percent;
+            Show(item);
+        };
+        return w;
+    }
+
+    private SystemMonitor CreateSystem()
+    {
+        var w = new SystemMonitor(Dispatcher, () => Settings);
+        w.Alert += alert =>
+        {
+            var glyph = alert.Kind switch
+            {
+                HealthKind.Disk => Glyphs.HardDrive,
+                HealthKind.GpuHot or HealthKind.Throttling => Glyphs.Warning,
+                _ => Glyphs.Gauge,
+            };
+            Show(HudItems.Info(glyph, alert.Title, alert.Status, HudTone.Bad));
+        };
+        if (_sessionActive) w.Start(); // paused while the PC is locked
+        return w;
+    }
+
+    private ControllerWatcher CreateControllers()
+    {
+        var w = new ControllerWatcher(Dispatcher, () => Settings);
+        w.Changed += OnControllerChanged;
+        w.Start();
+        return w;
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -293,6 +457,7 @@ public partial class App : Application
             _brightness?.Dispose();
             _media?.Dispose();
             _osdHider?.Dispose(); // puts the Windows volume pop-up back
+            _duplicateHider?.Dispose();
             _system?.Dispose();
             _power?.Dispose();
             _keyboard?.Dispose();
@@ -301,6 +466,7 @@ public partial class App : Application
             _network?.Dispose();
             _tray?.Dispose();
             Audio?.Dispose();
+            if (_tray is not null) Log.Info("Capsule stopped");
             if (_ownsInstance) _instance?.ReleaseMutex();
             _instance?.Dispose();
         }
@@ -309,7 +475,6 @@ public partial class App : Application
             Log.Error("Error while closing", ex);
         }
 
-        if (_tray is not null) Log.Info("Capsule stopped");
         base.OnExit(e);
     }
 
@@ -319,7 +484,19 @@ public partial class App : Application
         var deadline = DateTime.UtcNow + (waitForPrevious ? TimeSpan.FromSeconds(60) : TimeSpan.Zero);
         while (true)
         {
-            _instance = new Mutex(initiallyOwned: true, InstanceName, out var created);
+            bool created;
+            try
+            {
+                _instance = new Mutex(initiallyOwned: true, InstanceName, out created);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // A copy running as administrator holds the name: that copy is the one running.
+                if (DateTime.UtcNow >= deadline) return false;
+                Thread.Sleep(250);
+                continue;
+            }
+
             if (created)
             {
                 _ownsInstance = true;
@@ -351,6 +528,23 @@ public partial class App : Application
         catch
         {
             return false;
+        }
+    }
+
+    internal void QuitRunningCopy() => SignalRunningCopy(QuitSignalName);
+
+    /// <summary>True once no Capsule is running in this session (its single-instance lock is gone).</summary>
+    internal static bool RunningCopyGone()
+    {
+        try
+        {
+            if (!Mutex.TryOpenExisting(InstanceName, out var mutex)) return true;
+            mutex.Dispose();
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false; // held by a copy running as administrator
         }
     }
 
@@ -389,6 +583,8 @@ public partial class App : Application
         if (headphoneRules != (Settings.HeadphoneMode, string.Join("|", Settings.SelectedHeadphones))) _switcher?.Rescan();
         if (theme != Settings.AppTheme) ApplyAppTheme();
         _osdHider?.SetEnabled(Settings.HideWindowsOsd);
+        if (_duplicateHider is not null) _duplicateHider.Enabled = Settings.HideDuplicatePopups;
+        if (_hud is not null) ApplyWatchers();
 
         _saveTimer?.Stop();
         _saveTimer?.Start();
@@ -420,15 +616,8 @@ public partial class App : Application
             if (active == _sessionActive) return;
             _sessionActive = active;
             if (_switcher is not null) _switcher.Paused = !active;
-            if (active)
-            {
-                _switcher?.Rescan();
-                _system?.Start();
-            }
-            else
-            {
-                _system?.Pause();
-            }
+            if (active) _switcher?.Rescan();
+            ApplyWatchers(); // stops every pop-up watcher while locked, restarts them on unlock
 
             Log.Info(active ? "Session active again" : "Session locked or switched away; paused");
         });

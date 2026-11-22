@@ -11,15 +11,20 @@ internal static class AutoStart
 
     private static string ExePath => Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "Capsule.exe");
 
-    private static string Command => $"\"{ExePath}\" {StartupArgument}";
+    private static string Command => CommandFor(ExePath);
 
-    public static bool IsEnabled()
+    private static string CommandFor(string exe) => $"\"{exe}\" {StartupArgument}";
+
+    public static bool IsEnabled() => IsEnabledFor(ExePath);
+
+    /// <summary>Whether start with Windows is on for the given exe (the installer asks about the installed copy).</summary>
+    public static bool IsEnabledFor(string exePath)
     {
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(RunKey);
             return key?.GetValue(ValueName) is string value
-                && string.Equals(value, Command, StringComparison.OrdinalIgnoreCase);
+                && string.Equals(value, CommandFor(exePath), StringComparison.OrdinalIgnoreCase);
         }
         catch (Exception ex)
         {
@@ -28,14 +33,15 @@ internal static class AutoStart
         }
     }
 
-    public static void Set(bool enabled)
+    /// <summary>Turns start with Windows on or off, for this exe or the one given (used by the installer).</summary>
+    public static void Set(bool enabled, string? exePath = null)
     {
         try
         {
             using var key = Registry.CurrentUser.CreateSubKey(RunKey);
             if (enabled)
             {
-                key.SetValue(ValueName, Command, RegistryValueKind.String);
+                key.SetValue(ValueName, exePath is null ? Command : CommandFor(exePath), RegistryValueKind.String);
             }
             else
             {

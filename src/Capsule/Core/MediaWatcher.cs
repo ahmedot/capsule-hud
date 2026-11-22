@@ -21,6 +21,7 @@ internal sealed class MediaWatcher : IDisposable
     private GlobalSystemMediaTransportControlsSession? _session;
     private string _lastKey = "";
     private DateTime _quietUntil;
+    private bool _disposed;
 
     public MediaWatcher(Dispatcher ui, Func<bool> wanted)
     {
@@ -35,7 +36,9 @@ internal sealed class MediaWatcher : IDisposable
         try
         {
             _quietUntil = DateTime.UtcNow + StartupQuiet;
-            _manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+            var manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+            if (_disposed) return; // switched off while starting
+            _manager = manager;
             _manager.CurrentSessionChanged += OnSessionChanged;
             Attach(_manager.GetCurrentSession());
         }
@@ -47,6 +50,7 @@ internal sealed class MediaWatcher : IDisposable
 
     public void Dispose()
     {
+        _disposed = true;
         if (_manager is not null) _manager.CurrentSessionChanged -= OnSessionChanged;
         Attach(null);
     }
@@ -56,6 +60,7 @@ internal sealed class MediaWatcher : IDisposable
 
     private void Attach(GlobalSystemMediaTransportControlsSession? session)
     {
+        if (_disposed) session = null;
         if (ReferenceEquals(session, _session)) return;
 
         if (_session is not null)

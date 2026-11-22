@@ -141,6 +141,7 @@ internal sealed class PrivacyWatcher : IDisposable
     private readonly object _gate = new();
     private Dictionary<string, string>? _camera;
     private Dictionary<string, string>? _microphone;
+    private bool _disposed;
 
     public PrivacyWatcher(Dispatcher ui) => _ui = ui;
 
@@ -154,13 +155,31 @@ internal sealed class PrivacyWatcher : IDisposable
         foreach (var capability in new[] { "webcam", "microphone" })
         {
             var watcher = RegistryChangeWatcher.TryCreate($@"{Store}\{capability}", Check);
-            if (watcher is not null) _watchers.Add(watcher);
+            if (watcher is null) continue;
+            lock (_gate)
+            {
+                if (!_disposed)
+                {
+                    _watchers.Add(watcher);
+                    continue;
+                }
+            }
+
+            watcher.Dispose(); // switched off while starting
         }
     });
 
     public void Dispose()
     {
-        foreach (var watcher in _watchers) watcher.Dispose();
+        RegistryChangeWatcher[] watchers;
+        lock (_gate)
+        {
+            _disposed = true;
+            watchers = [.. _watchers];
+            _watchers.Clear();
+        }
+
+        foreach (var watcher in watchers) watcher.Dispose();
     }
 
     private void Check()
@@ -181,7 +200,7 @@ internal sealed class PrivacyWatcher : IDisposable
 
     private void Compare(string device, ref Dictionary<string, string>? previous, Dictionary<string, string> now)
     {
-        if (previous is not null)
+        if (previous is not null && !_disposed)
         {
             foreach (var (key, name) in now)
             {
@@ -268,6 +287,7 @@ internal sealed class DriveWatcher : IDisposable
     private readonly Dictionary<string, string> _labels = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
     private ManagementEventWatcher? _watcher;
+    private bool _disposed;
 
     public DriveWatcher(Dispatcher ui) => _ui = ui;
 
@@ -282,7 +302,16 @@ internal sealed class DriveWatcher : IDisposable
             var watcher = new ManagementEventWatcher(new WqlEventQuery("SELECT * FROM Win32_VolumeChangeEvent WHERE EventType = 2 OR EventType = 3"));
             watcher.EventArrived += OnEvent;
             watcher.Start();
-            _watcher = watcher;
+            lock (_gate)
+            {
+                if (!_disposed)
+                {
+                    _watcher = watcher;
+                    return;
+                }
+            }
+
+            Stop(watcher); // switched off while starting
         }
         catch (Exception ex)
         {
@@ -292,10 +321,24 @@ internal sealed class DriveWatcher : IDisposable
 
     public void Dispose()
     {
+        ManagementEventWatcher? watcher;
+        lock (_gate)
+        {
+            _disposed = true;
+            watcher = _watcher;
+            _watcher = null;
+        }
+
+        if (watcher is not null) Stop(watcher);
+    }
+
+    private void Stop(ManagementEventWatcher watcher)
+    {
         try
         {
-            _watcher?.Stop();
-            _watcher?.Dispose();
+            watcher.EventArrived -= OnEvent;
+            watcher.Stop();
+            watcher.Dispose();
         }
         catch
         {

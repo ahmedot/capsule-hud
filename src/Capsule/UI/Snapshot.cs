@@ -22,7 +22,7 @@ internal static class Snapshot
         try
         {
             Directory.CreateDirectory(folder);
-            var dark = new AppSettings();
+            var dark = new AppSettings { HudAccent = "#34D17A" }; // fixed colour so README images stay the same on any PC
             var light = new AppSettings { HudTheme = HudTheme.Light, HudAccent = "#4CC2FF" };
             var violet = new AppSettings { HudAccent = "#8B7CFF" };
 
@@ -30,6 +30,10 @@ internal static class Snapshot
             RenderHud(folder, "hud-headphones-off", dark, HudItems.Device(Glyphs.Headphones, "Studio Headphones", false));
             RenderHud(folder, "hud-controller", violet, HudItems.Device(Glyphs.Controller, "Wireless Controller", true, 55));
             RenderHud(folder, "hud-volume", dark, HudItems.Volume("Studio Headphones", 0.64f, false));
+            // Same device at other levels: these must all come out the same size.
+            RenderHud(folder, "check-volume-5", dark, HudItems.Volume("Studio Headphones", 0.05f, false));
+            RenderHud(folder, "check-volume-100", dark, HudItems.Volume("Studio Headphones", 1f, false));
+            RenderHud(folder, "check-volume-muted", dark, HudItems.Volume("Studio Headphones", 0.64f, true));
             RenderHud(folder, "hud-mic", dark, HudItems.Microphone("USB Microphone", true));
             RenderHud(folder, "hud-light", light, HudItems.Device(Glyphs.Headphones, "Studio Headphones", true, 80));
             RenderHud(folder, "hud-media", dark, HudItems.Media("Midnight Drive", "Neon Avenue", true, SampleArt()));
@@ -48,6 +52,50 @@ internal static class Snapshot
             RenderAnimation(folder, dark, HudItems.Device(Glyphs.Headphones, "Studio Headphones", true, 80));
 
             app.DemoMode = true;
+            RenderInstaller(app, folder, () => RenderSettings(app, folder));
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Snapshot failed", ex);
+            app.Shutdown(1);
+        }
+    }
+
+    // The installer: its first screen (once the demo pill has opened) and the "all set" screen.
+    private static void RenderInstaller(App app, string folder, Action next)
+    {
+        var installer = new InstallerWindow(app, [], snapshot: true);
+        installer.Show();
+        var step = 0;
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
+        timer.Tick += (_, _) =>
+        {
+            step++;
+            if (step == 2) CaptureVisual(installer, Path.Combine(folder, "installer.png"));
+            if (step == 2) installer.ShowDoneForSnapshot();
+            if (step < 3) return;
+            CaptureVisual(installer, Path.Combine(folder, "installer-done.png"));
+            timer.Stop();
+            installer.Close();
+            next();
+        };
+        timer.Start();
+    }
+
+    private static void CaptureVisual(Window window, string path)
+    {
+        var dpi = VisualTreeHelper.GetDpi(window);
+        var bitmap = new RenderTargetBitmap(
+            (int)Math.Ceiling(window.ActualWidth * dpi.DpiScaleX), (int)Math.Ceiling(window.ActualHeight * dpi.DpiScaleY),
+            dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
+        bitmap.Render(window);
+        Save(bitmap, path);
+    }
+
+    private static void RenderSettings(App app, string folder)
+    {
+        try
+        {
             var window = new SettingsWindow(app) { WindowStartupLocation = WindowStartupLocation.Manual, Left = 40, Top = 40 };
             window.Show();
             // One picture per page; each page gets a moment to finish drawing.

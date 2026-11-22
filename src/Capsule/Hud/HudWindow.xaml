@@ -100,7 +100,9 @@
                 </Border.RenderTransform>
               </Border>
             </Grid>
-            <TextBlock Text="{Binding LevelText}" FontFamily="{StaticResource TextFont}" FontSize="13.5" MinWidth="28"
+            <!-- Fixed width (fits "100%" and "Muted") so the pill keeps one size while the level changes. -->
+            <TextBlock Text="{Binding LevelText}" FontFamily="{StaticResource TextFont}" FontSize="13.5" Width="44"
+                       Typography.NumeralAlignment="Tabular"
                        TextAlignment="Right" Margin="10,0,0,0" VerticalAlignment="Center"
                        Foreground="{DynamicResource HudSubtext}"
                        Visibility="{Binding HasLevel, Converter={StaticResource Visible}}" />

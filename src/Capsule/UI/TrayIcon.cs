@@ -109,7 +109,7 @@ internal sealed class TrayIcon : IDisposable
 
         _menu.Items.Add(Toggle("Switch to headphones automatically", settings.AutoSwitch,
             on => _app.UpdateSettings(s => s.AutoSwitch = on)));
-        _menu.Items.Add(Toggle("Show HUD", settings.HudEnabled,
+        _menu.Items.Add(Toggle("Show the HUD", settings.HudEnabled,
             on => _app.UpdateSettings(s => s.HudEnabled = on)));
         _menu.Items.Add(new Separator());
 
@@ -118,7 +118,7 @@ internal sealed class TrayIcon : IDisposable
             _menu.Items.Add(Action($"Install update {update.Version}…", _app.InstallUpdate));
         }
 
-        _menu.Items.Add(Action("Preview HUD", _app.PreviewHud));
+        _menu.Items.Add(Action("Try the HUD", _app.PreviewHud));
         _menu.Items.Add(Action("Settings", _app.ShowSettings));
         _menu.Items.Add(new Separator());
         _menu.Items.Add(Action("Quit Capsule", _app.Quit));

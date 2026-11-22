@@ -10,7 +10,7 @@ internal enum HealthKind { CpuLoad, GpuLoad, GpuHot, Throttling, Memory, Disk }
 internal sealed record HealthAlert(HealthKind Kind, string Title, string Status);
 
 /// <summary>
-/// Samples CPU, GPU, memory, heat and disk space every 2 seconds on a background thread using only
+/// Samples CPU, GPU, memory, heat and disk space every 5 seconds on a background thread using only
 /// Windows' own counters (no drivers, no admin rights) and raises an alert when a limit is held.
 /// </summary>
 internal sealed class SystemMonitor : IDisposable
@@ -21,6 +21,8 @@ internal sealed class SystemMonitor : IDisposable
     private readonly Dispatcher _ui;
     private readonly Func<AppSettings> _settings;
     private readonly Timer _timer;
+    private readonly object _sampleGate = new();
+    private bool _disposed;
     private readonly SustainedAlert _cpu = new(TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(15));
     private readonly SustainedAlert _gpu = new(TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(30));
     private readonly SustainedAlert _gpuHot = new(TimeSpan.FromSeconds(10), TimeSpan.FromMinutes(15));
@@ -50,26 +52,33 @@ internal sealed class SystemMonitor : IDisposable
     public void Dispose()
     {
         _timer.Dispose();
-        _pdh.Dispose();
+        lock (_sampleGate)
+        {
+            _disposed = true; // a sample already running finishes first; none starts after this
+            _pdh.Dispose();
+        }
     }
 
     private void Tick()
     {
         if (Interlocked.Exchange(ref _busy, 1) == 1) return; // never overlap samples
+        Monitor.Enter(_sampleGate);
         try
         {
+            if (_disposed) return;
             var s = _settings();
             var now = DateTime.UtcNow;
             if (!s.HudEnabled || !(s.HudCpuGpu || s.HudHeat || s.HudMemoryDisk)) return;
 
-            var cpu = CpuPercent();
+            // Only measure what an alert that is switched on needs.
+            var cpu = s.HudCpuGpu ? CpuPercent() : 0;
             // The GPU counter lists hundreds of engines, so read it only every third sample (15 s)
             // and only when GPU alerts are on. That still catches "busy for 30 s".
             if (s.HudCpuGpu && _ticks++ % 3 == 0) _lastGpu = _pdh.GpuLoad();
             var gpu = s.HudCpuGpu ? _lastGpu : null;
             var gpuTemp = s.HudHeat ? GpuTemperature.Max() : null;
             var limit = s.HudHeat ? _pdh.ThermalLimitPercent() : null;
-            var memory = MemoryPercent();
+            var memory = s.HudMemoryDisk ? MemoryPercent() : null;
 
             if (s.HudCpuGpu && _cpu.Update(cpu >= s.CpuAlertPercent, now))
             {
@@ -88,7 +97,7 @@ internal sealed class SystemMonitor : IDisposable
 
             if (s.HudHeat && limit is { } l && _throttle.Update(l < 90, now))
             {
-                Raise(new HealthAlert(HealthKind.Throttling, "CPU is slowing down", $"Heat or power limit · {l:0}% speed"));
+                Raise(new HealthAlert(HealthKind.Throttling, "CPU is slowing down", $"Slowed by heat · {l:0}% speed"));
             }
 
             if (s.HudMemoryDisk && memory is { } m && _memory.Update(m >= s.MemoryAlertPercent, now))
@@ -108,6 +117,7 @@ internal sealed class SystemMonitor : IDisposable
         }
         finally
         {
+            Monitor.Exit(_sampleGate);
             Volatile.Write(ref _busy, 0);
         }
     }

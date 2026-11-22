@@ -18,6 +18,7 @@ public partial class SettingsWindow : Window
 
     private readonly App _app;
     private bool _loading;
+    private string? _pickedAccent;
     private string? _renameSignature;
     private HudWindow? _previewWindow;
 
@@ -70,10 +71,19 @@ public partial class SettingsWindow : Window
             HudHeatCheck.IsChecked = s.HudHeat;
             HudMemoryDiskCheck.IsChecked = s.HudMemoryDisk;
             HudPowerCheck.IsChecked = s.HudPower;
+            WarningsCaption.Text =
+                "Only when it lasts, not for short spikes. " +
+                $"CPU at {s.CpuAlertPercent}% or GPU at {s.GpuAlertPercent}% for 30 seconds · " +
+                $"GPU at {s.GpuTempAlertC} °C or the CPU slowed by heat for 10 seconds · " +
+                $"memory {s.MemoryAlertPercent}% full for 30 seconds · a drive with less than {s.DiskFreeAlertGb} GB free · " +
+                $"laptop battery at 20% and 10% · headphones or controller at {s.DeviceBatteryAlertPercent}%. " +
+                "Switching a warning off also stops its checks.";
             AutoUpdateToggle.IsChecked = s.AutoUpdateCheck;
             Select(AppThemeCombo, s.AppTheme.ToString());
             UpdateUpdateRow();
             HideOsdToggle.IsChecked = s.HideWindowsOsd;
+            HideDuplicatesToggle.IsChecked = s.HideDuplicatePopups;
+            ShowKeyboardAppTip();
             BatteryToggle.IsChecked = s.HudBattery;
             foreach (var spot in PositionSpots()) spot.IsChecked = (string)spot.Tag == s.HudPosition.ToString();
             Select(ScreenCombo, s.HudScreen.ToString());
@@ -81,13 +91,17 @@ public partial class SettingsWindow : Window
             Select(ThemeCombo, s.HudTheme.ToString());
             DurationSlider.Value = s.HudSeconds;
             DurationText.Text = $"{s.HudSeconds:0.0} s";
+            var followWindows = AppSettings.IsWindowsAccent(s.HudAccent);
+            if (AppSettings.IsColor(s.HudAccent)) _pickedAccent = s.HudAccent;
+            AccentWindowsToggle.IsChecked = followWindows;
+            AccentPickRow.Visibility = followWindows ? Visibility.Collapsed : Visibility.Visible;
             BuildAccentSwatches(s.HudAccent);
 
             IgnoreVirtualToggle.IsChecked = s.IgnoreVirtualControllers;
             StartupToggle.IsChecked = AutoStart.IsEnabled();
 
             LogRow.Description = _app.DemoMode ? @"%LOCALAPPDATA%\Capsule" : Log.Folder;
-            AboutRow.Description = $"Capsule {App.Version}. Open source (MIT). No telemetry, no admin rights. The only thing it ever downloads is its own updates from GitHub.";
+            AboutRow.Description = $"Capsule {App.Version}. Open source (MIT). No telemetry, no admin rights. The only connections it makes are to GitHub, to check for and download its own updates.";
             RepoButton.Visibility = App.RepositoryUrl.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
             FillDeviceLists(s);
@@ -112,10 +126,13 @@ public partial class SettingsWindow : Window
         Toggle(HudBrightnessCheck, (s, on) => s.HudBrightness = on);
         Toggle(HudLockKeysCheck, (s, on) => s.HudLockKeys = on);
         Toggle(HideOsdToggle, (s, on) => s.HideWindowsOsd = on);
+        Toggle(HideDuplicatesToggle, (s, on) => s.HideDuplicatePopups = on);
         Toggle(HudKeyboardCheck, (s, on) => s.HudKeyboard = on);
         Toggle(HudPrivacyCheck, (s, on) => s.HudPrivacy = on);
         Toggle(HudUsbCheck, (s, on) => s.HudUsb = on);
         Toggle(HudNetworkCheck, (s, on) => s.HudNetwork = on);
+        AccentWindowsToggle.Checked += (_, _) => OnAccentWindowsChanged(true);
+        AccentWindowsToggle.Unchecked += (_, _) => OnAccentWindowsChanged(false);
         Toggle(HudCpuGpuCheck, (s, on) => s.HudCpuGpu = on);
         Toggle(HudHeatCheck, (s, on) => s.HudHeat = on);
         Toggle(HudMemoryDiskCheck, (s, on) => s.HudMemoryDisk = on);
@@ -356,6 +373,33 @@ public partial class SettingsWindow : Window
             ? Visibility.Visible
             : Visibility.Collapsed;
 
+    private string? _keyboardAppPath;
+
+    // A keyboard app that shows its own lock-key pop-up: say so, and offer to open it to switch that off.
+    private void ShowKeyboardAppTip()
+    {
+        var app = DuplicatePopupHider.DetectApp();
+        KeyboardAppTip.Visibility = app is null ? Visibility.Collapsed : Visibility.Visible;
+        if (app is not { } found) return;
+        KeyboardAppRow.Title = $"{found.Name} is on this PC";
+        _keyboardAppPath = found.SettingsPath;
+        OpenKeyboardAppButton.Content = $"Open {found.Name}";
+        OpenKeyboardAppButton.Visibility = found.SettingsPath is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void OpenKeyboardApp_Click(object sender, RoutedEventArgs e)
+    {
+        if (_keyboardAppPath is null || !File.Exists(_keyboardAppPath)) return;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_keyboardAppPath) { UseShellExecute = true })?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Could not open the keyboard app", ex);
+        }
+    }
+
     private void BuildAccentSwatches(string current)
     {
         AccentPanel.Children.Clear();
@@ -373,11 +417,25 @@ public partial class SettingsWindow : Window
             swatch.Checked += (_, _) =>
             {
                 if (_loading) return;
+                _pickedAccent = hex;
                 _app.UpdateSettings(s => s.HudAccent = hex);
                 UpdateLook();
             };
             AccentPanel.Children.Add(swatch);
         }
+    }
+
+    // On: follow Windows and hide the colour choices. Off: show them, starting from the last colour picked.
+    private void OnAccentWindowsChanged(bool followWindows)
+    {
+        if (_loading) return;
+        var hex = followWindows ? AppSettings.WindowsAccent : _pickedAccent ?? AppSettings.AccentPresets[0];
+        _app.UpdateSettings(s => s.HudAccent = hex);
+        AccentPickRow.Visibility = followWindows ? Visibility.Collapsed : Visibility.Visible;
+        _loading = true;
+        BuildAccentSwatches(hex);
+        _loading = false;
+        UpdateLook();
     }
 
     private void Toggle(System.Windows.Controls.Primitives.ToggleButton box, Action<AppSettings, bool> apply)
