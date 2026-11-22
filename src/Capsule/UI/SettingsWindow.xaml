@@ -1,0 +1,400 @@
+<Window x:Class="Capsule.UI.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:Capsule.UI"
+        Title="Capsule"
+        Width="1060" Height="780" MinWidth="1020" MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        Icon="/Assets/Capsule.ico">
+
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="232" />
+      <ColumnDefinition Width="*" />
+    </Grid.ColumnDefinitions>
+
+    <!-- ============================ navigation ============================ -->
+    <DockPanel Margin="12,14,8,14">
+      <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="10,2,0,22">
+        <Image Source="/Assets/Capsule.png" Width="34" Height="34" RenderOptions.BitmapScalingMode="HighQuality" />
+        <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+          <TextBlock Text="Capsule" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+          <TextBlock x:Name="NavVersion" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+        </StackPanel>
+      </StackPanel>
+
+      <Button x:Name="PreviewButton" DockPanel.Dock="Bottom" HorizontalAlignment="Stretch" Padding="12,9" Margin="4,0"
+              Style="{DynamicResource AccentButtonStyle}" Click="Preview_Click">
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="&#xE768;" FontFamily="{StaticResource IconFont}" FontSize="12" Margin="0,1,8,0" VerticalAlignment="Center" />
+          <TextBlock Text="Try the HUD" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+
+      <StackPanel x:Name="Nav">
+        <RadioButton x:Name="NavHome" Style="{StaticResource NavItem}" Tag="&#xE80F;" Content="Home" IsChecked="True" />
+        <RadioButton x:Name="NavSound" Style="{StaticResource NavItem}" Tag="&#xE7F6;" Content="Sound" />
+        <RadioButton x:Name="NavHud" Style="{StaticResource NavItem}" Tag="&#xE7F4;" Content="HUD look" />
+        <RadioButton x:Name="NavAlerts" Style="{StaticResource NavItem}" Tag="&#xEA8F;" Content="What it shows" />
+        <RadioButton x:Name="NavDevices" Style="{StaticResource NavItem}" Tag="&#xE8AC;" Content="Device names" />
+        <RadioButton x:Name="NavGeneral" Style="{StaticResource NavItem}" Tag="&#xE713;" Content="General" />
+      </StackPanel>
+    </DockPanel>
+
+    <!-- ============================ pages ============================ -->
+    <ScrollViewer x:Name="PageScroller" Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <Grid Margin="28,26,32,32" Width="740" HorizontalAlignment="Left">
+
+        <!-- ======== HOME ======== -->
+        <StackPanel x:Name="PageHome">
+          <TextBlock x:Name="Greeting" Style="{StaticResource PageTitle}" Text="Good evening" />
+          <TextBlock Style="{StaticResource PageSubtitle}" Text="Here's what Capsule is doing right now." />
+
+          <!-- live status -->
+          <Border Style="{StaticResource Card}" Margin="0,20,0,0" Padding="22,20">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Text="SOUND IS PLAYING ON" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <TextBlock x:Name="HomeOutput" FontSize="24" FontWeight="SemiBold" Margin="0,4,0,12"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                <WrapPanel>
+                  <Border Style="{StaticResource Chip}">
+                    <StackPanel Orientation="Horizontal">
+                      <Ellipse x:Name="AutoDot" Width="8" Height="8" Margin="0,0,7,0" VerticalAlignment="Center" />
+                      <TextBlock x:Name="AutoChipText" FontSize="12.5" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </StackPanel>
+                  </Border>
+                  <Border Style="{StaticResource Chip}">
+                    <StackPanel Orientation="Horizontal">
+                      <Ellipse x:Name="HudDot" Width="8" Height="8" Margin="0,0,7,0" VerticalAlignment="Center" />
+                      <TextBlock x:Name="HudChipText" FontSize="12.5" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </StackPanel>
+                  </Border>
+                  <Border Style="{StaticResource Chip}">
+                    <StackPanel Orientation="Horizontal">
+                      <TextBlock Text="&#xEC0A;" FontFamily="{StaticResource IconFont}" FontSize="12" Margin="0,1,7,0" VerticalAlignment="Center"
+                                 Foreground="{DynamicResource AccentFillColorDefaultBrush}" />
+                      <TextBlock Text="Efficiency mode" FontSize="12.5" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </StackPanel>
+                  </Border>
+                </WrapPanel>
+              </StackPanel>
+              <Border Grid.Column="1" Width="400" Height="104" Margin="12,0,0,0">
+                <Image x:Name="HomePreview" Stretch="Uniform" StretchDirection="DownOnly" Margin="6" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+            </Grid>
+          </Border>
+
+          <TextBlock Text="Settings" Style="{StaticResource SectionHeader}" />
+          <UniformGrid Columns="2">
+            <Button Style="{StaticResource ShortcutCard}" Margin="0,0,6,8" Click="GoSound">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Left" Text="&#xE7F6;" FontFamily="{StaticResource IconFont}" FontSize="20" Width="38" VerticalAlignment="Center" Foreground="{DynamicResource AccentFillColorDefaultBrush}" />
+                <TextBlock DockPanel.Dock="Right" Text="&#xE76C;" FontFamily="{StaticResource IconFont}" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <StackPanel>
+                  <TextBlock Text="Sound" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                  <TextBlock x:Name="SoundSummary" Style="{StaticResource Caption}" />
+                </StackPanel>
+              </DockPanel>
+            </Button>
+            <Button Style="{StaticResource ShortcutCard}" Margin="6,0,0,8" Click="GoHud">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Left" Text="&#xE7F4;" FontFamily="{StaticResource IconFont}" FontSize="20" Width="38" VerticalAlignment="Center" Foreground="{DynamicResource AccentFillColorDefaultBrush}" />
+                <TextBlock DockPanel.Dock="Right" Text="&#xE76C;" FontFamily="{StaticResource IconFont}" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <StackPanel>
+                  <TextBlock Text="HUD look" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                  <TextBlock x:Name="HudSummary" Style="{StaticResource Caption}" />
+                </StackPanel>
+              </DockPanel>
+            </Button>
+            <Button Style="{StaticResource ShortcutCard}" Margin="0,0,6,8" Click="GoAlerts">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Left" Text="&#xEA8F;" FontFamily="{StaticResource IconFont}" FontSize="20" Width="38" VerticalAlignment="Center" Foreground="{DynamicResource AccentFillColorDefaultBrush}" />
+                <TextBlock DockPanel.Dock="Right" Text="&#xE76C;" FontFamily="{StaticResource IconFont}" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <StackPanel>
+                  <TextBlock Text="What it shows" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                  <TextBlock x:Name="AlertsSummary" Style="{StaticResource Caption}" />
+                </StackPanel>
+              </DockPanel>
+            </Button>
+            <Button Style="{StaticResource ShortcutCard}" Margin="6,0,0,8" Click="GoGeneral">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Left" Text="&#xE895;" FontFamily="{StaticResource IconFont}" FontSize="20" Width="38" VerticalAlignment="Center" Foreground="{DynamicResource AccentFillColorDefaultBrush}" />
+                <TextBlock DockPanel.Dock="Right" Text="&#xE76C;" FontFamily="{StaticResource IconFont}" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <StackPanel>
+                  <TextBlock Text="Updates and startup" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                  <TextBlock x:Name="GeneralSummary" Style="{StaticResource Caption}" />
+                </StackPanel>
+              </DockPanel>
+            </Button>
+          </UniformGrid>
+          <TextBlock x:Name="StatusText" Visibility="Collapsed" />
+        </StackPanel>
+
+        <!-- ======== SOUND ======== -->
+        <StackPanel x:Name="PageSound" Visibility="Collapsed">
+          <TextBlock Style="{StaticResource PageTitle}" Text="Sound" />
+          <TextBlock Style="{StaticResource PageSubtitle}" Text="What happens when headphones connect and disconnect." />
+
+          <Border Style="{StaticResource Card}" Margin="0,20,0,0">
+            <StackPanel>
+              <ui:SettingRow Glyph="&#xE7F6;" Title="Switch to headphones automatically"
+                             Description="When headphones connect, your sound moves to them. When they disconnect, it moves back.">
+                <CheckBox x:Name="AutoSwitchToggle" Style="{StaticResource ToggleSwitch}" />
+              </ui:SettingRow>
+              <Border Style="{StaticResource Divider}" />
+              <ui:SettingRow Glyph="&#xE717;" Title="Calls follow too"
+                             Description="Teams, Discord and other call apps use the headphones as well.">
+                <CheckBox x:Name="CallsToggle" Style="{StaticResource ToggleSwitch}" />
+              </ui:SettingRow>
+              <Border Style="{StaticResource Divider}" />
+              <ui:SettingRow Glyph="&#xE9F5;" Title="Which headphones count"
+                             Description="Normally anything Windows calls headphones or a headset.">
+                <ComboBox x:Name="HeadphoneModeCombo" MinWidth="240">
+                  <ComboBoxItem Content="All headphones and headsets" Tag="Any" />
+                  <ComboBoxItem Content="Only the ones I pick" Tag="Selected" />
+                </ComboBox>
+              </ui:SettingRow>
+              <StackPanel x:Name="HeadphonePicker" Margin="72,0,16,14" Visibility="Collapsed">
+                <TextBlock Text="Tick the headphones that should take over the sound:" Style="{StaticResource Caption}" Margin="0,0,0,6" />
+                <ItemsControl x:Name="HeadphoneList" />
+                <TextBlock x:Name="HeadphoneListEmpty" Text="No sound devices found." Style="{StaticResource Caption}" Visibility="Collapsed" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <TextBlock Text="When headphones disconnect" Style="{StaticResource SectionHeader}" />
+          <Border Style="{StaticResource Card}">
+            <StackPanel>
+              <ui:SettingRow Glyph="&#xE7F5;" Title="Sound goes back to"
+                             Description="Usually the speakers you were using before.">
+                <ComboBox x:Name="FallbackCombo" MinWidth="240" MaxWidth="320" />
+              </ui:SettingRow>
+            </StackPanel>
+          </Border>
+
+          <TextBlock Text="Microphone" Style="{StaticResource SectionHeader}" />
+          <Border Style="{StaticResource Card}">
+            <ui:SettingRow Glyph="&#xE720;" Title="When Bluetooth headphones connect"
+                           Description="If Windows switches to the headset's own mic, your headphones drop to low call quality. Keeping your usual mic avoids that.">
+              <ComboBox x:Name="MicCombo" MinWidth="240" MaxWidth="320" />
+            </ui:SettingRow>
+          </Border>
+        </StackPanel>
+
+        <!-- ======== HUD LOOK ======== -->
+        <StackPanel x:Name="PageHud" Visibility="Collapsed">
+          <TextBlock Style="{StaticResource PageTitle}" Text="HUD look" />
+          <TextBlock Style="{StaticResource PageSubtitle}" Text="Changes show in the preview straight away." />
+
+          <!-- live preview -->
+          <Border Margin="0,12,0,0" Height="120">
+            <Image x:Name="HudPreview" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+
+          <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+            <StackPanel>
+              <ui:SettingRow Glyph="&#xE7F4;" Title="Show the HUD" Description="Turn every pop-up on or off in one go.">
+                <CheckBox x:Name="HudToggle" Style="{StaticResource ToggleSwitch}" />
+              </ui:SettingRow>
+              <Border Style="{StaticResource Divider}" />
+
+              <ui:SettingRow Glyph="&#xE7C4;" Title="Where it appears" Description="Click a spot on the screen.">
+                <Border Width="220" Height="120" CornerRadius="8" BorderThickness="2" Padding="4"
+                        BorderBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}"
+                        Background="{DynamicResource ControlAltFillColorSecondaryBrush}">
+                  <UniformGrid Rows="2" Columns="3">
+                    <RadioButton x:Name="PosTopLeft" Style="{StaticResource PositionSpot}" Tag="TopLeft" ToolTip="Top left" />
+                    <RadioButton x:Name="PosTopCenter" Style="{StaticResource PositionSpot}" Tag="TopCenter" ToolTip="Top center" />
+                    <RadioButton x:Name="PosTopRight" Style="{StaticResource PositionSpot}" Tag="TopRight" ToolTip="Top right" />
+                    <RadioButton x:Name="PosBottomLeft" Style="{StaticResource PositionSpot}" Tag="BottomLeft" ToolTip="Bottom left" />
+                    <RadioButton x:Name="PosBottomCenter" Style="{StaticResource PositionSpot}" Tag="BottomCenter" ToolTip="Bottom center" />
+                    <RadioButton x:Name="PosBottomRight" Style="{StaticResource PositionSpot}" Tag="BottomRight" ToolTip="Bottom right" />
+                  </UniformGrid>
+                </Border>
+              </ui:SettingRow>
+              <Border Style="{StaticResource Divider}" />
+
+              <ui:SettingRow Glyph="&#xE7F8;" Title="Which screen" Description="With more than one monitor.">
+                <ComboBox x:Name="ScreenCombo" MinWidth="200">
+                  <ComboBoxItem Content="The one my mouse is on" Tag="MousePointer" />
+                  <ComboBoxItem Content="Main screen" Tag="Primary" />
+                </ComboBox>
+              </ui:SettingRow>
+              <Border Style="{StaticResource Divider}" />
+
+              <ui:SettingRow Glyph="&#xE8E9;" Title="Size">
+                <ComboBox x:Name="SizeCombo" MinWidth="200">
+                  <ComboBoxItem Content="Small" Tag="Compact" />
+                  <ComboBoxItem Content="Normal" Tag="Normal" />
+                  <ComboBoxItem Content="Large" Tag="Large" />
+                </ComboBox>
+              </ui:SettingRow>
+              <Border Style="{StaticResource Divider}" />
+
+              <ui:SettingRow Glyph="&#xE793;" Title="Colours">
+                <ComboBox x:Name="ThemeCombo" MinWidth="200">
+                  <ComboBoxItem Content="Dark" Tag="Dark" />
+                  <ComboBoxItem Content="Light" Tag="Light" />
+                  <ComboBoxItem Content="Same as Windows" Tag="System" />
+                </ComboBox>
+              </ui:SettingRow>
+              <Border Style="{StaticResource Divider}" />
+
+              <ui:SettingRow Glyph="&#xE790;" Title="Accent colour">
+                <StackPanel x:Name="AccentPanel" Orientation="Horizontal" />
+              </ui:SettingRow>
+              <Border Style="{StaticResource Divider}" />
+
+              <ui:SettingRow Glyph="&#xE916;" Title="How long it stays">
+                <StackPanel Orientation="Horizontal">
+                  <Slider x:Name="DurationSlider" Width="180" Minimum="1" Maximum="6" TickFrequency="0.5"
+                          IsSnapToTickEnabled="True" SmallChange="0.5" LargeChange="1" VerticalAlignment="Center" />
+                  <TextBlock x:Name="DurationText" Width="48" TextAlignment="Right" VerticalAlignment="Center" FontSize="14"
+                             Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                </StackPanel>
+              </ui:SettingRow>
+              <Border Style="{StaticResource Divider}" />
+
+              <ui:SettingRow Glyph="&#xE83F;" Title="Show battery level"
+                             Description="For headphones and controllers that report it.">
+                <CheckBox x:Name="BatteryToggle" Style="{StaticResource ToggleSwitch}" />
+              </ui:SettingRow>
+            </StackPanel>
+          </Border>
+
+          <TextBlock Text="Windows' own pop-up" Style="{StaticResource SectionHeader}" />
+          <Border Style="{StaticResource Card}">
+            <ui:SettingRow Glyph="&#xE7B3;" Title="Hide the Windows volume pop-up"
+                           Description="Experimental. Only Capsule's HUD shows when you change volume or brightness. A future Windows update could stop this from working.">
+              <CheckBox x:Name="HideOsdToggle" Style="{StaticResource ToggleSwitch}" />
+            </ui:SettingRow>
+          </Border>
+        </StackPanel>
+
+        <!-- ======== WHAT IT SHOWS ======== -->
+        <StackPanel x:Name="PageAlerts" Visibility="Collapsed">
+          <TextBlock Style="{StaticResource PageTitle}" Text="What it shows" />
+          <TextBlock Style="{StaticResource PageSubtitle}" Text="Pick which moments get a HUD pop-up." />
+
+          <TextBlock Text="Devices" Style="{StaticResource SectionHeader}" />
+          <Border Style="{StaticResource Card}" Padding="20,14">
+            <UniformGrid Columns="2">
+              <CheckBox x:Name="HudHeadphonesCheck" Content="Headphones" Margin="0,5" />
+              <CheckBox x:Name="HudControllersCheck" Content="Game controllers" Margin="0,5" />
+              <CheckBox x:Name="HudUsbCheck" Content="USB drives" Margin="0,5" />
+              <CheckBox x:Name="HudPrivacyCheck" Content="Camera or mic in use" Margin="0,5" />
+            </UniformGrid>
+          </Border>
+
+          <TextBlock Text="Sound and keyboard" Style="{StaticResource SectionHeader}" />
+          <Border Style="{StaticResource Card}" Padding="20,14">
+            <UniformGrid Columns="2">
+              <CheckBox x:Name="HudVolumeCheck" Content="Volume" Margin="0,5" />
+              <CheckBox x:Name="HudMicCheck" Content="Microphone mute" Margin="0,5" />
+              <CheckBox x:Name="HudMediaCheck" Content="Now playing (song and artist)" Margin="0,5" />
+              <CheckBox x:Name="HudKeyboardCheck" Content="Keyboard language" Margin="0,5" />
+              <CheckBox x:Name="HudLockKeysCheck" Content="Caps Lock and Num Lock" Margin="0,5" />
+              <CheckBox x:Name="HudBrightnessCheck" Content="Screen brightness" Margin="0,5" />
+              <CheckBox x:Name="HudNetworkCheck" Content="Wi-Fi, internet and VPN" Margin="0,5" />
+            </UniformGrid>
+          </Border>
+
+          <TextBlock Text="Warnings" Style="{StaticResource SectionHeader}" />
+          <Border Style="{StaticResource Card}" Padding="20,14">
+            <StackPanel>
+              <TextBlock Style="{StaticResource Caption}" Margin="0,0,0,8"
+                         Text="Only when it lasts, never for short spikes: CPU or GPU above 90% for 30 seconds, GPU over 85 °C, memory over 90%, a drive under 10 GB, battery under 20%." />
+              <UniformGrid Columns="2">
+                <CheckBox x:Name="HudCpuGpuCheck" Content="Busy CPU or GPU" Margin="0,5" />
+                <CheckBox x:Name="HudHeatCheck" Content="Hot GPU or slowed CPU" Margin="0,5" />
+                <CheckBox x:Name="HudMemoryDiskCheck" Content="Low memory or disk space" Margin="0,5" />
+                <CheckBox x:Name="HudPowerCheck" Content="Battery and charger" Margin="0,5" />
+              </UniformGrid>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- ======== DEVICE NAMES ======== -->
+        <StackPanel x:Name="PageDevices" Visibility="Collapsed">
+          <TextBlock Style="{StaticResource PageTitle}" Text="Device names" />
+          <TextBlock Style="{StaticResource PageSubtitle}" Text="Give your devices names you'll recognise. Capsule uses them in the HUD and the tray menu." />
+
+          <Border Style="{StaticResource Card}" Margin="0,20,0,0">
+            <StackPanel>
+              <StackPanel x:Name="RenameList" Margin="0,8,0,8" />
+              <TextBlock x:Name="RenameEmpty" Text="Connect a device to rename it." Style="{StaticResource Caption}"
+                         Margin="20,14" Visibility="Collapsed" />
+            </StackPanel>
+          </Border>
+
+          <TextBlock Text="Controllers" Style="{StaticResource SectionHeader}" />
+          <Border Style="{StaticResource Card}">
+            <ui:SettingRow Glyph="&#xE7FC;" Title="Ignore Steam's virtual controllers"
+                           Description="Steam creates these while games run; they'd otherwise pop up every time.">
+              <CheckBox x:Name="IgnoreVirtualToggle" Style="{StaticResource ToggleSwitch}" />
+            </ui:SettingRow>
+          </Border>
+        </StackPanel>
+
+        <!-- ======== GENERAL ======== -->
+        <StackPanel x:Name="PageGeneral" Visibility="Collapsed">
+          <TextBlock Style="{StaticResource PageTitle}" Text="General" />
+          <TextBlock Style="{StaticResource PageSubtitle}" Text="Updates, startup and the look of this window." />
+
+          <Border Style="{StaticResource Card}" Margin="0,20,0,0">
+            <StackPanel>
+              <ui:SettingRow Glyph="&#xE7E8;" Title="Start with Windows"
+                             Description="Capsule starts quietly in the tray when you sign in.">
+                <CheckBox x:Name="StartupToggle" Style="{StaticResource ToggleSwitch}" />
+              </ui:SettingRow>
+              <Border Style="{StaticResource Divider}" />
+              <ui:SettingRow Glyph="&#xE790;" Title="Window colours" Description="For this window and the tray menu.">
+                <ComboBox x:Name="AppThemeCombo" MinWidth="200">
+                  <ComboBoxItem Content="Same as Windows" Tag="System" />
+                  <ComboBoxItem Content="Light" Tag="Light" />
+                  <ComboBoxItem Content="Dark" Tag="Dark" />
+                </ComboBox>
+              </ui:SettingRow>
+            </StackPanel>
+          </Border>
+
+          <TextBlock Text="Updates" Style="{StaticResource SectionHeader}" />
+          <Border Style="{StaticResource Card}">
+            <StackPanel>
+              <ui:SettingRow Glyph="&#xE895;" Title="Check for updates every day"
+                             Description="Capsule asks GitHub if there's a new version. It always asks you before installing.">
+                <CheckBox x:Name="AutoUpdateToggle" Style="{StaticResource ToggleSwitch}" />
+              </ui:SettingRow>
+              <Border Style="{StaticResource Divider}" />
+              <ui:SettingRow Glyph="&#xE946;" Title="Version" x:Name="UpdateRow">
+                <StackPanel Orientation="Horizontal">
+                  <Button x:Name="InstallUpdateButton" Content="Install update" Padding="14,6" Margin="0,0,8,0"
+                          Style="{DynamicResource AccentButtonStyle}" Click="InstallUpdate_Click" Visibility="Collapsed" />
+                  <Button x:Name="CheckUpdateButton" Content="Check now" Padding="14,6" Click="CheckUpdate_Click" />
+                </StackPanel>
+              </ui:SettingRow>
+            </StackPanel>
+          </Border>
+
+          <TextBlock Text="About" Style="{StaticResource SectionHeader}" />
+          <Border Style="{StaticResource Card}">
+            <StackPanel>
+              <ui:SettingRow Glyph="&#xE946;" Title="Capsule" x:Name="AboutRow">
+                <Button x:Name="RepoButton" Content="View on GitHub" Padding="14,6" Click="Repo_Click" />
+              </ui:SettingRow>
+              <Border Style="{StaticResource Divider}" />
+              <ui:SettingRow Glyph="&#xE8A5;" Title="Log file" x:Name="LogRow">
+                <Button Content="Open folder" Padding="14,6" Click="OpenLogs_Click" />
+              </ui:SettingRow>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </Grid>
+    </ScrollViewer>
+  </Grid>
+</Window>

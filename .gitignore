@@ -1,0 +1,30 @@
+# Build output
+bin/
+obj/
+out/
+dist/
+publish/
+TestResults/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Local files
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Secrets and signing material
+.env
+.env.*
+*.pfx
+*.p12
+*.snk
+*.pem
+*.key

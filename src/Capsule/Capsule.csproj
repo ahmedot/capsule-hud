@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Capsule</RootNamespace>
+    <AssemblyName>Capsule</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\Capsule.ico</ApplicationIcon>
+    <Version>1.0.0</Version>
+    <Product>Capsule</Product>
+    <Description>Moves your sound to your headphones the moment they connect, with a clean HUD for headphones, controllers, volume and mic.</Description>
+    <Copyright>Copyright (c) 2026 Capsule contributors</Copyright>
+    <Deterministic>true</Deterministic>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <!-- Keeps the package graph (and lock file) identical for normal and single-file builds. -->
+    <EnableSingleFileAnalyzer>false</EnableSingleFileAnalyzer>
+    <!-- Keep it light: workstation GC without the background GC thread, tuned to hand memory back. -->
+    <ServerGarbageCollector>false</ServerGarbageCollector>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>false</TieredPGO>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- WPF0001: WPF's Windows 11 (Fluent) theme is marked experimental.
+         WFO0003: WinForms-only advice; this is a WPF app (WinForms is used just for the tray icon). -->
+    <NoWarn>$(NoWarn);WPF0001;WFO0003</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\Capsule.ico" />
+    <Resource Include="Assets\Capsule.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Capsule.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Tell the garbage collector to favour a small memory footprint over speed (0-9). -->
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="7" />
+    <RuntimeHostConfigurationOption Include="System.GC.RetainVM" Value="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Management" Version="11.0.0" />
+  </ItemGroup>
+
+</Project>

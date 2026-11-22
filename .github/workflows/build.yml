@@ -1,0 +1,123 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+# Read-only by default; only the release job (tags only) can write.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+
+      - name: Restore (locked)
+        run: dotnet restore Capsule.slnx --locked-mode
+
+      - name: Test
+        run: dotnet test Capsule.slnx -c Release --no-restore
+
+  # Builds the release files in a job that never restores or runs the test packages.
+  build:
+    needs: test
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+
+      - name: Publish
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          # A release build carries the tag's version, so the app knows exactly which version it is.
+          $version = if ($env:GITHUB_REF -like 'refs/tags/v*') { $env:GITHUB_REF_NAME.Substring(1) } else { '0.0.0-dev' }
+          if ($version -ne '0.0.0-dev' -and $version -notmatch '^\d{1,4}\.\d{1,4}\.\d{1,4}$') { throw "Tag must be vX.Y.Z" }
+          dotnet restore src/Capsule/Capsule.csproj --locked-mode -p:SelfContained=true -p:PublishSingleFile=true
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($rid in 'win-x64', 'win-arm64') {
+            dotnet publish src/Capsule/Capsule.csproj -c Release -r $rid --self-contained --no-restore `
+              -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true "-p:Version=$version" -o "out/$rid"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Copy-Item "out/$rid/Capsule.exe" "dist/Capsule-$rid.exe"
+          }
+          Get-FileHash dist/*.exe -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } |
+            Set-Content -Encoding ascii dist/SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: capsule
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write      # create the GitHub release
+      id-token: write      # sign the build provenance
+      attestations: write  # store the build provenance
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: CHANGELOG.md
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: capsule
+          path: dist
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.exe
+            dist/SHA256SUMS.txt
+
+      # Release notes come from CHANGELOG.md (reviewed in the repository), never from pull-request titles.
+      - name: Release notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          awk -v v="$version" '$0 ~ "^## " v "$" {found=1; next} found && /^## / {exit} found {print}' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then echo "CHANGELOG.md has no '## $version' section" >&2; exit 1; fi
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # The tag must still point at the commit that was built and attested.
+          test "$(git rev-parse "refs/tags/$TAG^{commit}" 2>/dev/null || gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha)" = "$GITHUB_SHA"
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --title "Capsule $TAG" --notes-file notes.md --verify-tag
