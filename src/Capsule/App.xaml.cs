@@ -110,6 +110,14 @@ public partial class App : Application
         if (!HasArgument(e.Args, QuitArgument) && !HasArgument(e.Args, Updater.UpdatedArgument)
             && Installer.ShouldInstall(e.Args))
         {
+            if (Installer.RunningAsSystem())
+            {
+                // A deployment tool running as SYSTEM: there is no one to install for, and no screen to show a message on.
+                Log.Info("Setup was started as SYSTEM or in the services session; not installing");
+                Shutdown(1);
+                return;
+            }
+
             if (Installer.StartedAsAdministrator())
             {
                 // Installing "as administrator" would put Capsule in the administrator's profile and start it elevated.
@@ -263,7 +271,7 @@ public partial class App : Application
         _volume = new VolumeWatcher(Audio, Dispatcher);
         _notifications = new AudioNotifications(Dispatcher);
         _osdHider = new WindowsOsdHider(Dispatcher);
-        _osdHider.SetEnabled(Settings.HideWindowsOsd);
+        _osdHider.SetEnabled(HideWindowsOsd);
         _duplicateHider = new DuplicatePopupHider(Dispatcher, () => Settings.TaughtPopups) { Enabled = Settings.HideDuplicatePopups };
 
         _switcher.HeadphonesChanged += OnHeadphonesChanged;
@@ -342,9 +350,7 @@ public partial class App : Application
         var w = new LockKeyWatcher(Dispatcher);
         w.Changed += (key, on) =>
         {
-            if (!Settings.HudLockKeys) return;
-            _duplicateHider?.Arm(); // only Capsule's pop-up should show
-            Show(HudItems.LockKey(key, on));
+            if (Settings.HudLockKeys) ShowInsteadOfDuplicate(HudItems.LockKey(key, on), lockKey: true);
         };
         return w;
     }
@@ -355,9 +361,7 @@ public partial class App : Application
         w.Changed += percent =>
         {
             _osdHider?.Arm();
-            if (!Settings.HudBrightness) return;
-            _duplicateHider?.Arm(lockKey: false);
-            Show(HudItems.Brightness(percent));
+            if (Settings.HudBrightness) ShowInsteadOfDuplicate(HudItems.Brightness(percent), lockKey: false);
         };
         w.Start();
         return w;
@@ -499,7 +503,10 @@ public partial class App : Application
     /// <summary>One copy per user session. After an update, wait for the old copy to finish closing.</summary>
     private bool AcquireInstance(bool waitForPrevious)
     {
-        var deadline = DateTime.UtcNow + (waitForPrevious ? TimeSpan.FromSeconds(60) : TimeSpan.Zero);
+        var now = Environment.TickCount64;
+        var deadline = now + (waitForPrevious ? 60_000 : 0);
+        // A closing copy drops its signals a moment before its lock, so a name with no signal gets a short grace period.
+        var graceUntil = now + 2_000;
         while (true)
         {
             bool created;
@@ -510,9 +517,15 @@ public partial class App : Application
             catch (UnauthorizedAccessException)
             {
                 // A copy running as administrator holds the name: that copy is the one running.
-                if (DateTime.UtcNow >= deadline) return false;
+                if (Environment.TickCount64 >= deadline) return false;
                 Thread.Sleep(250);
                 continue;
+            }
+            catch (WaitHandleCannotBeOpenedException ex)
+            {
+                // Something other than a Capsule lock has the name: don't let that stop Capsule from starting.
+                Log.Error("Instance name is used by something else; starting anyway", ex);
+                return true;
             }
 
             if (created)
@@ -524,14 +537,22 @@ public partial class App : Application
             _instance.Dispose();
             _instance = null;
 
-            // Someone holds the name but no Capsule answers on it: don't let that stop us from starting.
-            if (!waitForPrevious && !SignalExists(ShowSignalName))
+            if (!waitForPrevious)
             {
-                Log.Info("Instance name is taken but no running Capsule was found; starting anyway");
-                return true;
+                if (SignalExists(ShowSignalName)) return false; // a running Capsule answers: hand over to it
+
+                // Someone holds the name but no Capsule answers on it: don't let that stop us from starting.
+                if (Environment.TickCount64 >= graceUntil)
+                {
+                    Log.Info("Instance name is taken but no running Capsule was found; starting anyway");
+                    return true;
+                }
+            }
+            else if (Environment.TickCount64 >= deadline)
+            {
+                return false;
             }
 
-            if (DateTime.UtcNow >= deadline) return false;
             Thread.Sleep(250);
         }
     }
@@ -602,6 +623,10 @@ public partial class App : Application
 
     // ------------------------------------------------------------------ settings, theme, session
 
+    // The Windows volume pop-up is only hidden while Capsule's own volume pop-up shows instead, so there's always one.
+    // (Capsule shows nothing while the PC is locked, so the Windows one comes back on the lock screen.)
+    private bool HideWindowsOsd => Settings.HideWindowsOsd && Settings.HudEnabled && Settings.HudVolume && _sessionActive;
+
     internal void UpdateSettings(Action<AppSettings> change)
     {
         var headphoneRules = (Settings.HeadphoneMode, string.Join("|", Settings.SelectedHeadphones));
@@ -611,7 +636,7 @@ public partial class App : Application
 
         if (headphoneRules != (Settings.HeadphoneMode, string.Join("|", Settings.SelectedHeadphones))) _switcher?.Rescan();
         if (theme != Settings.AppTheme) ApplyAppTheme();
-        _osdHider?.SetEnabled(Settings.HideWindowsOsd);
+        _osdHider?.SetEnabled(HideWindowsOsd);
         if (_duplicateHider is not null) _duplicateHider.Enabled = Settings.HideDuplicatePopups;
         if (_hud is not null) ApplyWatchers();
 
@@ -647,14 +672,22 @@ public partial class App : Application
             if (_switcher is not null) _switcher.Paused = !active;
             if (active) _switcher?.Rescan();
             ApplyWatchers(); // stops every pop-up watcher while locked, restarts them on unlock
+            _osdHider?.SetEnabled(HideWindowsOsd);
 
             Log.Info(active ? "Session active again" : "Session locked or switched away; paused");
         });
     }
 
-    internal void Show(HudItem item)
+    /// <summary>Shows a pop-up. False when nothing is shown: the PC is locked, the HUD is off, or the queue is full.</summary>
+    internal bool Show(HudItem item) => _sessionActive && _hud?.Show(item) == true;
+
+    /// <summary>
+    /// Capsule's pop-up for a key, volume, mic or brightness change. Only when it really shows does another app's
+    /// duplicate of it get hidden, so nothing is ever hidden while Capsule shows nothing.
+    /// </summary>
+    private void ShowInsteadOfDuplicate(HudItem item, bool lockKey)
     {
-        if (_sessionActive) _hud?.Show(item);
+        if (Show(item)) _duplicateHider?.Arm(lockKey);
     }
 
     internal void ShowSettings()
@@ -907,16 +940,12 @@ public partial class App : Application
     private void OnVolumeChanged(AudioEndpoint endpoint, float level, bool muted)
     {
         _osdHider?.Arm();
-        if (!Settings.HudVolume) return;
-        _duplicateHider?.Arm(lockKey: false);
-        Show(HudItems.Volume(Shown(endpoint.ShortName), level, muted));
+        if (Settings.HudVolume) ShowInsteadOfDuplicate(HudItems.Volume(Shown(endpoint.ShortName), level, muted), lockKey: false);
     }
 
     private void OnMicMuteChanged(AudioEndpoint endpoint, bool muted)
     {
-        if (!Settings.HudMicMute) return;
-        _duplicateHider?.Arm(lockKey: false);
-        Show(HudItems.Microphone(Shown(endpoint.ShortName), muted));
+        if (Settings.HudMicMute) ShowInsteadOfDuplicate(HudItems.Microphone(Shown(endpoint.ShortName), muted), lockKey: false);
     }
 
     // Warn once per connection when headphones or a controller run low.

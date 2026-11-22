@@ -39,7 +39,7 @@ public partial class InstallerWindow : Window
     private List<SetupQuestion> _questions = [];
     private readonly List<SetupChoice> _answers = [];
     private TaskCompletionSource<List<SetupChoice>>? _asking;
-    private DateTime _questionShownAt;
+    private long _questionShownAt; // Environment.TickCount64, which date and time changes can't move
 
     internal InstallerWindow(App app, string[] args, bool snapshot = false)
     {
@@ -109,11 +109,11 @@ public partial class InstallerWindow : Window
 
     private async void OnInstall(object sender, RoutedEventArgs e)
     {
-        if (_busy) return;
+        if (_busy || SnapshotMode) return;
         _busy = true;
         SetWorking(true);
         var startWithWindows = StartupSwitch.IsChecked == true;
-        var started = DateTime.UtcNow;
+        var started = System.Diagnostics.Stopwatch.StartNew();
         var install = Task.Run(() => Installer.Install(startWithWindows, _app.QuitRunningCopy, App.RunningCopyGone));
         // If copying fails while questions are on screen, stop asking and show the error.
         _ = install.ContinueWith(_ => Dispatcher.BeginInvoke(new Action(SkipQuestions)),
@@ -124,7 +124,8 @@ public partial class InstallerWindow : Window
             // First install: a few quick questions while the files are copied.
             List<SetupChoice>? answers = null;
             // The scan normally takes well under a second; never let a stuck one hold up the install.
-            if (_scan is not null && await Task.WhenAny(_scan, Task.Delay(3000)) == _scan
+            // No questions once the copy has already failed: the error shows instead.
+            if (_scan is not null && await Task.WhenAny(_scan, Task.Delay(3000)) == _scan && !install.IsFaulted
                 && SetupQuestions.For(await _scan) is { Count: > 0 } questions)
             {
                 answers = await AskAsync(questions);
@@ -133,7 +134,7 @@ public partial class InstallerWindow : Window
             await install;
 
             // Let the progress sweep be seen; a too-fast install feels like nothing happened.
-            var elapsed = DateTime.UtcNow - started;
+            var elapsed = started.Elapsed;
             if (answers is null && elapsed < TimeSpan.FromMilliseconds(1400))
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(1400) - elapsed);
@@ -156,6 +157,8 @@ public partial class InstallerWindow : Window
         catch (Exception ex)
         {
             Log.Error("Install failed", ex);
+            // Never offer "Try again" while the first copy might still be running.
+            await install.ContinueWith(_ => { }, TaskScheduler.Default);
             QuestionsPanel.Visibility = Visibility.Collapsed;
             SetupPanel.Visibility = Visibility.Visible;
             SetWorking(false);
@@ -172,26 +175,14 @@ public partial class InstallerWindow : Window
 
     private void OnRunPortable(object sender, RoutedEventArgs e)
     {
-        if (_busy) return;
+        if (_busy || SnapshotMode) return;
         _continuePortable = true;
         Close();
     }
 
     private void OnDone(object sender, RoutedEventArgs e) => Close();
 
-    private void OnOpenKeyboardApp(object sender, RoutedEventArgs e)
-    {
-        // Checked again at click time: only an installed program under Program Files is ever started.
-        if (_keyboardAppPath is null || !File.Exists(_keyboardAppPath) || !DuplicatePopupHider.IsInstalledLocation(_keyboardAppPath)) return;
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_keyboardAppPath) { UseShellExecute = true })?.Dispose();
-        }
-        catch (Exception ex)
-        {
-            Log.Error("Could not open the keyboard app", ex);
-        }
-    }
+    private void OnOpenKeyboardApp(object sender, RoutedEventArgs e) => DuplicatePopupHider.OpenSettingsApp(_keyboardAppPath);
 
     // A keyboard app with its own Caps Lock pop-up: Capsule hides the duplicate, and says how to switch it off for good.
     private void ShowKeyboardAppTip()
@@ -199,8 +190,8 @@ public partial class InstallerWindow : Window
         if (SnapshotMode || DuplicatePopupHider.DetectApp() is not { } app) return;
         KeyboardAppText.Text = SettingsStore.Load().HideDuplicatePopups
             ? $"{app.Name} also shows Caps Lock pop-ups. Capsule hides them for you. " +
-              "For the cleanest look, turn them off in its settings too."
-            : $"{app.Name} also shows Caps Lock pop-ups. To see only Capsule's, turn them off in its settings.";
+              $"For the cleanest look, turn them off in {app.Name} too."
+            : $"{app.Name} also shows Caps Lock pop-ups. To see only Capsule's, turn them off in {app.Name}.";
         _keyboardAppPath = app.SettingsPath;
         KeyboardAppButton.Content = $"Open {app.Name}";
         KeyboardAppButton.Visibility = app.SettingsPath is null ? Visibility.Collapsed : Visibility.Visible;
@@ -229,7 +220,7 @@ public partial class InstallerWindow : Window
 
     private void ShowQuestion(int index, bool animate)
     {
-        _questionShownAt = DateTime.UtcNow;
+        _questionShownAt = Environment.TickCount64;
         var question = _questions[index];
         StepText.Text = $"Make it yours  ·  {index + 1} of {_questions.Count}";
         QuestionTitle.Text = question.Title;
@@ -321,7 +312,7 @@ public partial class InstallerWindow : Window
     private void Pick(SetupChoice choice)
     {
         // The next question's cards appear where the last ones were: ignore the second click of a double-click.
-        if (_asking is null || DateTime.UtcNow - _questionShownAt < TimeSpan.FromMilliseconds(400)) return;
+        if (_asking is null || Environment.TickCount64 - _questionShownAt < 400) return;
         _answers.Add(choice);
         if (_answers.Count < _questions.Count) ShowQuestion(_answers.Count, animate: true);
         else FinishQuestions();
@@ -427,9 +418,9 @@ public partial class InstallerWindow : Window
         });
     }
 
-    // ------------------------------------------------------------------ colours
+    // ------------------------------------------------------------------ colors
 
-    /// <summary>Paints the button, switch, icons and background glow in the person's Windows accent colour.</summary>
+    /// <summary>Paints the button, switch, icons and background glow in the person's Windows accent color.</summary>
     private void UseWindowsAccent()
     {
         var light = WindowsAccent.ForDark;   // Windows' own shade for accents on dark backgrounds

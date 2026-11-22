@@ -41,7 +41,7 @@ public class AccentTests
     {
         var bright = WindowsAccent.Bright(Color.FromRgb(r, g, b));
         Assert.True(WindowsAccent.Luminance(bright) >= WindowsAccent.MinBrightness - 0.005);
-        Assert.True(bright.R >= r && bright.G >= g && bright.B >= b); // only lighter, never a different colour
+        Assert.True(bright.R >= r && bright.G >= g && bright.B >= b); // only lighter, never a different color
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public class AccentTests
         Assert.Equal(AppSettings.WindowsAccent, new AppSettings { HudAccent = value }.Normalize().HudAccent);
 
     [Fact]
-    public void Picked_colours_are_kept()
+    public void Picked_colors_are_kept()
     {
         foreach (var hex in AppSettings.AccentPresets)
         {

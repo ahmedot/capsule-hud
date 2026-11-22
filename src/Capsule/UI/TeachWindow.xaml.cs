@@ -12,12 +12,12 @@ namespace Capsule.UI;
 /// </summary>
 public partial class TeachWindow : Window
 {
-    private static readonly TimeSpan WatchFor = TimeSpan.FromSeconds(15);
+    private const long WatchForMs = 15_000;
 
     private readonly App _app;
     private readonly DispatcherTimer _timer;
     private HashSet<IntPtr> _baseline = [];
-    private DateTime _until;
+    private long _until;
     private Action? _primary;
     private Action? _secondary;
 
@@ -35,7 +35,7 @@ public partial class TeachWindow : Window
     internal void ShowFoundForSnapshot()
     {
         _timer.Stop(); // so a real pop-up can't replace the sample
-        ShowFound([new PopupCandidate(IntPtr.Zero, "Keyboard Utility", @"C:\Program Files\Vendor\KeyboardUtility.exe", "SampleOsd")]);
+        ShowFound([new PopupCandidate(IntPtr.Zero, "Keyboard Utility", @"C:\Program Files\Vendor\KeyboardUtility.exe", "SampleOsd", 280, 72)]);
     }
 
     // ------------------------------------------------------------------ steps
@@ -49,7 +49,7 @@ public partial class TeachWindow : Window
         Found.Children.Clear();
         SetButtons(primary: null, secondary: ("Cancel", Close));
         _baseline = DuplicatePopupHider.VisibleWindows();
-        _until = DateTime.UtcNow + WatchFor;
+        _until = Environment.TickCount64 + WatchForMs;
         _timer.Start();
     }
 
@@ -61,7 +61,7 @@ public partial class TeachWindow : Window
             _timer.Stop();
             ShowFound(found);
         }
-        else if (DateTime.UtcNow >= _until)
+        else if (Environment.TickCount64 >= _until)
         {
             _timer.Stop();
             ShowNothing();
@@ -116,23 +116,30 @@ public partial class TeachWindow : Window
         {
             s.HideDuplicatePopups = true;
             s.TaughtPopups.RemoveAll(t => t.Matches(candidate.ExePath, candidate.WindowClass));
-            s.TaughtPopups.Add(new TaughtPopup { App = candidate.App, ExePath = candidate.ExePath, WindowClass = candidate.WindowClass });
+            s.TaughtPopups.Add(new TaughtPopup
+            {
+                App = candidate.App,
+                ExePath = candidate.ExePath,
+                WindowClass = candidate.WindowClass,
+                Width = candidate.Width,
+                Height = candidate.Height,
+            });
         });
         Found.Children.Clear();
         if (!_app.Settings.TaughtPopups.Any(t => t.Matches(candidate.ExePath, candidate.WindowClass)))
         {
             Heading.Text = "Couldn't remember this app";
-            Body.Text = "Capsule remembers up to 16 apps. Remove one in Capsule's settings, then try again.";
+            Body.Text = "Capsule remembers up to 16 apps. Remove one under HUD look in Capsule's settings, then try again.";
             SetButtons(primary: ("Close", Close), secondary: null);
             return;
         }
 
-        DuplicatePopupHider.HideOne(candidate.Window);
+        DuplicatePopupHider.HideOne(candidate);
         HeadingIcon.Text = Glyphs.Checkmark;
         Heading.Text = "Done";
         Body.Text = $"Capsule will hide {candidate.App}'s pop-up right after showing its own. " +
                     (wasOn ? "" : "This also turned on \"Hide duplicate pop-ups from keyboard apps\". ") +
-                    "You can undo this in Capsule's settings.";
+                    "To undo it, click Remove under HUD look in Capsule's settings.";
         Found.Children.Clear();
         SetButtons(primary: ("Close", Close), secondary: null);
     }
@@ -143,7 +150,7 @@ public partial class TeachWindow : Window
         panel.Children.Add(new TextBlock { Text = candidate.App, FontSize = 14, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
         panel.Children.Add(new TextBlock
         {
-            Text = Path.GetFileName(candidate.ExePath),
+            Text = DisplayText.Clean(Path.GetFileName(candidate.ExePath), 60),
             FontSize = 12.5,
             Opacity = 0.7,
             TextWrapping = TextWrapping.Wrap,

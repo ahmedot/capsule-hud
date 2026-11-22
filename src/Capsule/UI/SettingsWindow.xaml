@@ -74,7 +74,7 @@
                       <TextBlock x:Name="HudChipText" FontSize="12.5" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                     </StackPanel>
                   </Border>
-                  <Border Style="{StaticResource Chip}">
+                  <Border x:Name="EfficiencyChip" Style="{StaticResource Chip}">
                     <StackPanel Orientation="Horizontal">
                       <TextBlock Text="&#xEC0A;" FontFamily="{StaticResource IconFont}" FontSize="12" Margin="0,1,7,0" VerticalAlignment="Center"
                                  Foreground="{DynamicResource AccentFillColorDefaultBrush}" />
@@ -203,7 +203,7 @@
               </ui:SettingRow>
               <Border Style="{StaticResource Divider}" />
 
-              <ui:SettingRow Glyph="&#xE7C4;" Title="Where it appears" Description="Click a spot on the screen.">
+              <ui:SettingRow Glyph="&#xE7C4;" Title="Where it appears" Description="Click a spot in the picture.">
                 <Border Width="220" Height="120" CornerRadius="8" BorderThickness="2" Padding="4"
                         BorderBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}"
                         Background="{DynamicResource ControlAltFillColorSecondaryBrush}">
@@ -236,7 +236,7 @@
               </ui:SettingRow>
               <Border Style="{StaticResource Divider}" />
 
-              <ui:SettingRow Glyph="&#xE793;" Title="Colors">
+              <ui:SettingRow Glyph="&#xE793;" Title="Light or dark">
                 <ComboBox x:Name="ThemeCombo" MinWidth="200">
                   <ComboBoxItem Content="Dark" Tag="Dark" />
                   <ComboBoxItem Content="Light" Tag="Light" />
@@ -279,7 +279,7 @@
           <Border Style="{StaticResource Card}">
             <StackPanel>
               <ui:SettingRow Glyph="&#xE7B3;" Title="Hide the Windows volume pop-up"
-                             Description="Experimental. Only Capsule's HUD shows when you change volume or brightness. A future Windows update could stop this from working.">
+                             Description="Experimental. While Capsule's volume pop-up is on, only Capsule shows when you change volume or brightness. A future Windows update could stop this from working.">
                 <CheckBox x:Name="HideOsdToggle" Style="{StaticResource ToggleSwitch}" />
               </ui:SettingRow>
               <Border Style="{StaticResource Divider}" />
@@ -320,7 +320,7 @@
             </UniformGrid>
           </Border>
 
-          <TextBlock Text="Sound and keyboard" Style="{StaticResource SectionHeader}" />
+          <TextBlock Text="Sound, keyboard, screen and network" Style="{StaticResource SectionHeader}" />
           <Border Style="{StaticResource Card}" Padding="20,14">
             <UniformGrid Columns="2">
               <CheckBox x:Name="HudVolumeCheck" Content="Volume" Margin="0,5" />

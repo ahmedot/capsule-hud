@@ -41,7 +41,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Tell the garbage collector to favour a small memory footprint over speed (0-9). -->
+    <!-- Tell the garbage collector to favor a small memory footprint over speed (0-9). -->
     <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="7" />
     <RuntimeHostConfigurationOption Include="System.GC.RetainVM" Value="false" />
   </ItemGroup>

@@ -128,6 +128,9 @@ public partial class SettingsWindow : Window
         Toggle(HudLockKeysCheck, (s, on) => s.HudLockKeys = on);
         Toggle(HideOsdToggle, (s, on) => s.HideWindowsOsd = on);
         Toggle(HideDuplicatesToggle, (s, on) => s.HideDuplicatePopups = on);
+        // The taught-app rows say whether they're hiding or paused, so redraw them when the switch changes.
+        HideDuplicatesToggle.Checked += (_, _) => { if (!_loading) BuildTaughtList(); };
+        HideDuplicatesToggle.Unchecked += (_, _) => { if (!_loading) BuildTaughtList(); };
         Toggle(HudKeyboardCheck, (s, on) => s.HudKeyboard = on);
         Toggle(HudPrivacyCheck, (s, on) => s.HudPrivacy = on);
         Toggle(HudUsbCheck, (s, on) => s.HudUsb = on);
@@ -253,7 +256,7 @@ public partial class SettingsWindow : Window
         MicCombo.Items.Add(new ComboBoxItem { Content = "Let Windows decide", Tag = MicLetWindows });
         foreach (var name in mics)
         {
-            MicCombo.Items.Add(new ComboBoxItem { Content = $"Always use {name}", Tag = name });
+            MicCombo.Items.Add(new ComboBoxItem { Content = $"Use {name}", Tag = name });
         }
 
         Select(MicCombo, s.MicMode switch
@@ -317,7 +320,7 @@ public partial class SettingsWindow : Window
         };
         System.Windows.Automation.AutomationProperties.SetName(box, $"Name for {original}");
 
-        // Grey hint showing the Windows name while the box is empty.
+        // Gray hint showing the Windows name while the box is empty.
         var hint = new TextBlock
         {
             Text = original,
@@ -402,7 +405,7 @@ public partial class SettingsWindow : Window
             {
                 Title = _app.Settings.HideDuplicatePopups ? $"Hiding pop-ups from {taught.App}" : $"{taught.App} (paused)",
                 Description = _app.Settings.HideDuplicatePopups
-                    ? Path.GetFileName(taught.ExePath)
+                    ? DisplayText.Clean(Path.GetFileName(taught.ExePath), 60)
                     : "Turn on the switch above to hide its pop-up again",
                 Margin = new Thickness(40, 0, 0, 0),
                 Content = remove,
@@ -422,19 +425,7 @@ public partial class SettingsWindow : Window
         OpenKeyboardAppButton.Visibility = found.SettingsPath is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    private void OpenKeyboardApp_Click(object sender, RoutedEventArgs e)
-    {
-        // Checked again at click time: only an installed program under Program Files is ever started.
-        if (_keyboardAppPath is null || !File.Exists(_keyboardAppPath) || !DuplicatePopupHider.IsInstalledLocation(_keyboardAppPath)) return;
-        try
-        {
-            Process.Start(new ProcessStartInfo(_keyboardAppPath) { UseShellExecute = true })?.Dispose();
-        }
-        catch (Exception ex)
-        {
-            Log.Error("Could not open the keyboard app", ex);
-        }
-    }
+    private void OpenKeyboardApp_Click(object sender, RoutedEventArgs e) => DuplicatePopupHider.OpenSettingsApp(_keyboardAppPath);
 
     private void BuildAccentSwatches(string current)
     {
@@ -461,7 +452,7 @@ public partial class SettingsWindow : Window
         }
     }
 
-    // On: follow Windows and hide the colour choices. Off: show them, starting from the last colour picked.
+    // On: follow Windows and hide the color choices. Off: show them, starting from the last color picked.
     private void OnAccentWindowsChanged(bool followWindows)
     {
         if (_loading) return;
@@ -557,6 +548,7 @@ public partial class SettingsWindow : Window
 
         SetChip(AutoDot, AutoChipText, s.AutoSwitch, "Auto-switching on", "Auto-switching off");
         SetChip(HudDot, HudChipText, s.HudEnabled, "HUD on", "HUD off");
+        EfficiencyChip.Visibility = Efficiency.IsOn ? Visibility.Visible : Visibility.Collapsed;
 
         SoundSummary.Text = s.AutoSwitch
             ? (s.SwitchCommunications ? "Headphones take over sound and calls" : "Headphones take over the sound")
@@ -568,7 +560,7 @@ public partial class SettingsWindow : Window
             s.HudHeadphones, s.HudControllers, s.HudUsb, s.HudPrivacy, s.HudVolume, s.HudMicMute, s.HudMedia,
             s.HudKeyboard, s.HudLockKeys, s.HudBrightness, s.HudNetwork, s.HudCpuGpu, s.HudHeat, s.HudMemoryDisk, s.HudPower,
         }.Count(on => on);
-        AlertsSummary.Text = $"{shown} of 15 kinds of pop-up are on";
+        AlertsSummary.Text = $"{shown} of 15 pop-ups are on";
         GeneralSummary.Text = (s.AutoUpdateCheck ? "Checks for updates daily" : "Update checks are off")
             + (AutoStart.IsEnabled() ? " · Starts with Windows" : "");
     }

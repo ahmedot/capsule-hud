@@ -132,8 +132,8 @@ public sealed class HudItem : INotifyPropertyChanged
 }
 
 /// <summary>
-/// Builds the standard HUD items. One colour rule throughout: the accent colour for on, connected or playing; soft
-/// grey for off, disconnected, muted or paused (nothing is wrong); red only for real warnings.
+/// Builds the standard HUD items. One color rule throughout: the accent color for on, connected or playing; soft
+/// gray for off, disconnected, muted or paused (nothing is wrong); red only for real warnings.
 /// </summary>
 internal static class HudItems
 {

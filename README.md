@@ -17,9 +17,10 @@
 3. Click **Install**, then answer a few one-tap questions about your PC (or tap **Skip**). That's it. Capsule starts
    straight away and pops up when you connect headphones, change the volume and more.
 
-> **Does Windows say "Windows protected your PC"?** Capsule is new and isn't code-signed yet, so Windows doesn't know
-> it. Click **More info**, then **Run anyway**. If your browser says the file isn't commonly downloaded, choose
-> **Keep**. To check that the file is genuine, see [verifying a download](SECURITY.md#verifying-a-download).
+> **Seeing a warning?** Capsule is new and isn't code-signed yet, so your browser and Windows don't know it yet. If
+> your browser says the file isn't commonly downloaded, choose **Keep** (in Edge it's under **⋯**). If Windows says
+> "Windows protected your PC", click **More info**, then **Run anyway**. To check that the file is genuine, see
+> [verifying a download](SECURITY.md#verifying-a-download).
 
 <p align="center">
   <a href="#features">Features</a> ·
@@ -32,7 +33,7 @@
 ---
 
 <p align="center">
-  <img src="docs/images/hud-animation.gif" alt="The Capsule pill opening from its icon and closing again" width="760">
+  <img src="docs/images/hud-animation.gif" alt="The Capsule pill opening from its icon and closing again" width="100%">
 </p>
 
 <p align="center">
@@ -54,12 +55,12 @@ through it.
 | | |
 |---|---|
 | <img src="docs/images/hud-headphones.png" width="340" alt="Headphones pill: Studio Headphones, Connected, 80%"> | **Headphones**: sound and calls move to your headphones as soon as they connect, and back when they leave (you can keep calls where they are). Shows battery when the headphones report it. |
-| <img src="docs/images/hud-controller.png" width="340" alt="Controller pill: Wireless Controller, Connected, 55%"> | **Game controllers**: USB and Bluetooth, with battery when the controller reports it. Steam Input's virtual controllers are ignored (this also hides controllers made by Valve; you can turn it off). |
+| <img src="docs/images/hud-controller.png" width="340" alt="Controller pill: Wireless Controller, Connected, 55%"> | **Game controllers**: USB and Bluetooth, with battery when the controller reports it. Steam Input's virtual controllers are ignored (this also hides controllers made by Valve; turn it off under *Device names*). |
 | <img src="docs/images/hud-volume.png" width="340" alt="Volume pill: Studio Headphones with a level bar at 64%"> | **Volume and mute**: a slim level bar for the device that's actually playing. The pill keeps the same size at every level. |
 | <img src="docs/images/hud-media.png" width="340" alt="Now playing pill: album art, Midnight Drive, Neon Avenue"> | **Now playing**: song, artist and album art when music starts, pauses or skips. |
 | <img src="docs/images/hud-mic.png" width="340" alt="Microphone pill: USB Microphone, Muted"> | **Microphone mute**: shows when your microphone is muted or unmuted in Windows, for example with a mute key on your keyboard or headset. (Mute buttons inside call apps don't change it.) |
 | <img src="docs/images/hud-usb.png" width="340" alt="USB drive pill: Backup (E:), Connected, 128 GB"> | **USB drives**: name and size when a drive connects, and its name when it's removed. |
-| <img src="docs/images/hud-camera.png" width="340" alt="Camera pill: Camera in use, Video Call"> | **Camera and mic in use**: a privacy heads-up naming the app that starts (and stops) using your camera or microphone. |
+| <img src="docs/images/hud-camera.png" width="340" alt="Camera pill: Camera in use, Video Call"> | **Camera or mic in use**: a privacy heads-up naming the app that starts (and stops) using your camera or microphone. |
 
 ### Keyboard, screen and network
 
@@ -77,7 +78,7 @@ through it.
 | <img src="docs/images/hud-cpu.png" width="340" alt="CPU alert pill: CPU 97%, game.exe"> | **Busy CPU or GPU**: CPU at 90% or GPU at 95% for 30 seconds (short spikes are ignored), naming the app responsible. |
 | <img src="docs/images/hud-gpu-hot.png" width="340" alt="Heat alert pill: GPU 88 °C, Running hot"> | **Heat**: GPU at 85 °C or hotter for 10 seconds (any brand whose driver reports its temperature to Windows), or Windows slowing the CPU down because of heat. |
 | <img src="docs/images/hud-charging.png" width="340" alt="Charging pill: Charging, Charger connected, 64%"> | **Battery and charger**: plugged in or unplugged, laptop battery at 20% and 10%, headphones or controller battery at 15%. |
-| | **Memory and disk**: memory 90% full for 30 seconds, or an internal drive (larger than 32 GB) with less than 10 GB free. |
+| | **Memory and disk**: memory 90% full for 30 seconds, or a drive larger than 32 GB (USB sticks are skipped) with less than 10 GB free. |
 
 ### Everything else
 
@@ -89,9 +90,9 @@ through it.
   light / same-as-Windows and how long it stays. It uses your Windows accent color, or switch that off to pick one of
   six colors. A live preview updates as you change things.
 - **Replaces the Windows volume pop-up** *(experimental, on by default)*, so only Capsule shows. Turn it off under
-  *HUD look* if you prefer the Windows one.
-- **No double pop-ups from keyboard apps.** Some keyboard apps, such as Logi Options+, show their own Caps Lock pop-up.
-  Capsule hides that duplicate right after you press Caps Lock or Num Lock, and leaves the app's other alerts alone.
+  *HUD look* if you prefer the Windows one. If you switch Capsule's volume pop-up off, the Windows one comes back.
+- **No double pop-ups from keyboard apps.** Logi Options+ shows its own Caps Lock pop-up. Capsule hides that
+  duplicate right after you press Caps Lock or Num Lock, and leaves the app's other alerts alone.
   Still see one from another app? **Teach Capsule** (in *HUD look*): press the key, Capsule names the app, and on
   your **Yes** it hides that app's pop-up too.
 - **One color rule.** Your accent color means on, connected or playing; soft gray means off, disconnected, muted or
@@ -109,14 +110,16 @@ through it.
 Capsule is built to barely show up in Task Manager's numbers:
 
 - **Waits instead of watching.** Almost everything is event-driven: Windows tells Capsule when a device, the volume,
-  the network or the camera changes. System health is sampled every few seconds, with the heavier GPU reading every 15 seconds.
-- **Windows Efficiency mode** (the green leaf in Task Manager) and below-normal priority, so it never competes with your games.
+  the network or the camera changes. Caps Lock, Num Lock and the keyboard language are a tiny check a few times a
+  second while those pop-ups are on. System health is sampled every few seconds, with the heavier GPU reading every 15
+  seconds.
+- **Windows Efficiency mode** (EcoQoS) and below-normal priority, so it never competes with your games.
 - **Draws on your GPU** (on PCs with graphics acceleration). Once the pill has opened, it's kept as one image on the
   graphics card until it closes. When it's hidden, nothing is drawn at all.
 - **Off means off.** Switch off a pop-up such as keyboard language, Caps Lock, brightness, now playing, network, USB
-  drives, camera and mic, or a warning, and the code that watches for it stops too, straight away. Volume, mic and
-  headphone changes are always received because automatic switching uses them; Windows announces those itself, so
-  they cost nothing while nothing changes.
+  drives, camera and mic, or a warning, and the code that watches for it stops too, straight away. The sound watcher
+  always runs, because automatic switching and hiding the Windows volume pop-up depend on it; Windows announces
+  volume, mic and headphone changes itself, so it costs nothing while nothing changes.
 - **Pauses while your PC is locked:** pop-up checks and sound switching stop until you unlock.
 - **Hands memory back** after start-up and when you close the settings window.
 
@@ -125,28 +128,29 @@ Measured on a Windows 11 desktop at idle: about **20 MB of memory in use** and *
 ## Install
 
 <p align="center">
-  <img src="docs/images/installer.png" alt="The Capsule installer: one Install button and a Start with Windows switch" width="380">
-  <img src="docs/images/installer-question.png" alt="A setup question: We found your Studio Headphones. When they connect, should your sound move to them by itself?" width="380">
+  <img src="docs/images/installer.png" alt="The Capsule installer: one Install button and a Start with Windows switch" width="49%">
+  <img src="docs/images/installer-question.png" alt="A setup question: We found your Studio Headphones. When they connect, should your sound move to them by itself?" width="49%">
 </p>
 
 Download **[Capsule-Setup.exe](https://github.com/ahmedot/capsule-hud/releases/latest/download/Capsule-Setup.exe)**, open it and click **Install**. The installer:
 
 - puts Capsule in `%LOCALAPPDATA%\Programs\Capsule`, just for your Windows account. No admin rights needed.
-- adds Capsule to the Start menu and to **Settings › Apps**, so you can remove it like any other app.
+- adds Capsule to the Start menu and to **Windows Settings › Apps**, so you can remove it like any other app.
 - starts Capsule with Windows, unless you switch that off on the install screen.
 - starts Capsule straight away, with a small "Capsule is ready" pop-up so you can see it working.
 
 While the files are copied, the installer asks a few one-tap questions, picked by a quick look at your PC: where the
-pop-up should appear, whether sound should follow the headphones it found, and, only if they apply, about games,
+pop-up should appear, whether sound should follow your headphones, and, only if they apply, about games,
 keyboard languages, your keyboard app and your laptop battery. Every question has a recommended answer, and **Skip**
 uses the recommended answers for the rest. The look at your PC happens on your PC only and nothing is saved except
 your answers. Updates and reinstalls keep your settings and don't ask again.
 
 To change anything later, open **Capsule** from the Start menu, or click its icon near the clock.
 
-- **Rather not install?** Choose **Try it without installing** on the install screen. To remove a copy like that
-  later, turn off *Start with Windows* in its settings, quit it from its icon near the clock, then delete the file and
-  the folders `%APPDATA%\Capsule` and `%LOCALAPPDATA%\Capsule`.
+- **Rather not install?** Choose **Try it without installing** on the install screen (each time you open the file).
+  To remove a copy like that later, turn off *Start with Windows* in its settings, right-click its icon near the clock
+  and choose **Quit Capsule**, then delete the file and the folders `%APPDATA%\Capsule` and `%LOCALAPPDATA%\Capsule`
+  (paste each one into File Explorer's address bar to open it).
 - **Setting up several PCs?** `Capsule-Setup.exe --install` installs silently for the Windows account that runs it and
   starts Capsule. Run it as that user, not as administrator or SYSTEM.
 - **Arm PC?** Download `Capsule-win-arm64.exe` from the [releases page](https://github.com/ahmedot/capsule-hud/releases/latest) instead. It's the native version for
@@ -170,12 +174,14 @@ pop-up, that comes back as Capsule closes.
 - **Camera and mic alerts** read Windows' own privacy records (the ones shown in Windows Settings › Privacy & security). Capsule never
   opens your camera or microphone.
 - Settings are a small JSON file in `%APPDATA%\Capsule`. The log is in `%LOCALAPPDATA%\Capsule`.
-- The installer only touches your own user account: the program folder, a Start menu shortcut, the Settings › Apps
-  entry and, if switched on, the start-with-Windows entry.
+- The installer only touches your own user account: the program folder, a Start menu shortcut, the Windows
+  Settings › Apps entry, the start-with-Windows entry if switched on, and Capsule's own settings file and log.
 - Releases are built by GitHub Actions from the tagged source, with SHA-256 sums and signed build provenance.
-  The code has been audited twice with Cloudflare's open-source
-  [security-audit skill](https://github.com/cloudflare/security-audit-skill), most recently before 1.0.0, and every
-  lead raised was fixed. [SECURITY.md](SECURITY.md#security-review) says what each audit covered.
+  The code has been audited three times with Cloudflare's open-source
+  [security-audit skill](https://github.com/cloudflare/security-audit-skill), most recently just before 1.0.0. None
+  of the audits found a confirmed vulnerability, and every lead they raised was fixed. One question, how the bundled
+  .NET runtime loads its own files, still needs a test on a sandboxed PC.
+  [SECURITY.md](SECURITY.md#security-review) says what each audit covered.
 
 See [SECURITY.md](SECURITY.md) for details and how to report a vulnerability.
 
@@ -187,9 +193,9 @@ settings.
 
 **I see two Caps Lock pop-ups.** Some keyboard apps show their own Caps Lock pop-up. Capsule hides the one from Logi
 Options+ automatically (*HUD look › Hide duplicate pop-ups from keyboard apps*, on by default), though it can flash for a split
-second. For any other app, open *HUD look* and click **Teach Capsule**, press the key that shows the extra pop-up, and
-confirm the app Capsule names. For the cleanest look you can also turn the notification off in the app itself;
-Capsule's settings show an **Open Logi Options+** button when Logi Options+ is installed.
+second. For most other apps, open *HUD look* and click **Teach Capsule**, press the key that shows the extra pop-up,
+and confirm the app Capsule names. For the cleanest look you can also turn the notification off in the app itself;
+Capsule's settings show an **Open Logi Options+** button while Logi Options+ is running.
 
 **Does it work on Windows 10?** Capsule is made and tested for Windows 11. It may run on Windows 10 version 2004 or
 newer, but that isn't tested, including the option that hides the Windows volume pop-up.
@@ -237,9 +243,9 @@ Useful switches:
 |---|---|
 | `--install` | Installs silently for the current Windows account and starts Capsule. A new install starts with Windows; a reinstall keeps your choice. |
 | `--portable` | Runs this copy where it is, without installing. |
-| `--uninstall` | Removes Capsule: the program, its shortcut, Settings › Apps entry, start-up entry, settings and log. Asks first; add `--quiet` to skip the question. |
+| `--uninstall` | Removes Capsule: the program, its shortcut, Windows Settings › Apps entry, start-up entry, settings and log. Asks first; add `--quiet` to skip the question. |
 | `--quit` | Closes a running copy cleanly. |
-| `--snapshot <folder>` | Renders sample HUD pills, the animation frames, the installer and each settings page, with sample names. |
+| `--snapshot <folder>` | Renders sample HUD pills, the animation frames, the installer, the Teach Capsule window and each settings page, with sample names. |
 
 ### How it works
 

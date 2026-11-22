@@ -28,16 +28,19 @@ Capsule is designed to have as little power as possible:
 - **No administrator rights.** It runs as you (`asInvoker`), with no service, driver or scheduled task.
 - **No keyboard logging.** The lock-key and language HUDs only read whether Caps Lock / Num Lock are on and which keyboard
   language is active. Capsule never sees what you type.
-- **Camera and mic alerts read Windows' own privacy records**; Capsule never opens the camera or microphone.
+- **Camera and mic alerts read Windows' own privacy records**; Capsule never opens the camera or microphone. A program
+  writes its own description, so the alert also shows its file name when the description doesn't already include it.
 - **Local files only.** Settings live in `%APPDATA%\Capsule\settings.json` and a small log in `%LOCALAPPDATA%\Capsule\`.
-  Downloaded updates are kept in `%LOCALAPPDATA%\Capsule\updates` until the next update or until Capsule is uninstalled.
+  Updates are downloaded to `%LOCALAPPDATA%\Capsule\updates` and deleted once installed. A download that fails its
+  checks is deleted at the next update attempt or when Capsule is uninstalled.
 - **Capsule's own Windows calls load system libraries only from System32.** A library resolver loads each of the
   eight Windows libraries Capsule uses by its full System32 path and refuses any other name, so a DLL placed next to
   Capsule.exe (for example in Downloads) is never used for them. (The .NET and WPF runtime files bundled inside
   Capsule.exe are unpacked and loaded by .NET itself.)
 - **The installer stays inside your user account.** It copies the program to `%LOCALAPPDATA%\Programs\Capsule`, adds a
-  Start menu shortcut, a *Settings › Apps* entry and, if *Start with Windows* is on (the default), a start-up entry,
-  all for your account only, and nothing else. The installed copy is a plain
+  Start menu shortcut, a *Windows Settings › Apps* entry and, if *Start with Windows* is on (the default), a start-up
+  entry, and saves your setup answers in Capsule's settings file and a line in its log, all for your account only,
+  and nothing else. The installed copy is a plain
   byte copy of the file you ran, so it doesn't carry the download's "from the internet" mark; Windows already checked
   the file when you opened it. Uninstalling removes the program folder, the shortcut, the Apps entry, the start-up
   entry, the settings and the log.
@@ -46,21 +49,22 @@ Capsule is designed to have as little power as possible:
 - **"Hide duplicate pop-ups from keyboard apps"** only acts for 1.5 seconds right after Capsule shows its own pop-up
   (Caps Lock or Num Lock; volume, mic and brightness only for apps you taught). It hides small windows (600 px or less
   at 100% scaling) of a known keyboard app's process, checked by the process's file name and the window's class, or
-  small always-on-top windows of an app you taught with **Teach Capsule**, matched by its full program path and window
-  class. It never changes another app's settings or files and never starts another program.
+  small always-on-top windows of an app you taught with **Teach Capsule**, matched by its full program path, window
+  class and about the size of the pop-up you picked. It never changes another app's settings or files and never starts
+  another program.
 - **"Open Logi Options+"** is only offered for a Logi Options+ process in your own Windows session whose program is
   under *Program Files* (which only administrators can change), and that location is checked again when you click.
 - **Teach Capsule** looks at the windows on your screen only while its window is open, and saves nothing until you
-  confirm an app. It never offers a part of Windows itself.
+  confirm an app. It never offers a program from the Windows folder, Windows' standard dialog windows or Capsule itself.
 - **The installer's setup questions** come from a quick local look at this PC: headphones, game controllers or a
   Steam install, keyboard languages, a laptop battery and the keyboard app. Nothing from it is saved or sent; only your
   answers become settings.
-- **The installer refuses to run "as administrator"** (when UAC is on and you chose to elevate it), so it never
-  installs into another account's profile or starts Capsule elevated. It also never replaces a newer installed version
-  with an older one.
+- **The installer refuses to run "as administrator"** (when UAC is on and you chose to elevate it) **or as SYSTEM**
+  (for example from a deployment tool), so it never installs into another account's profile or starts Capsule
+  elevated. It also never replaces a newer installed version with an older one.
 - **The experimental "Hide the Windows volume pop-up" option** (on by default) minimizes one small Explorer window
-  (checked by class, size and Explorer's real path) while it's on, and puts it back when you turn the option off or
-  quit.
+  (checked by class, size and Explorer's real path) while it and Capsule's own volume pop-up are on and the PC is
+  unlocked, and puts it back otherwise or when Capsule quits.
 
 ### Known limit of the updater
 
@@ -77,7 +81,7 @@ Every release is built by GitHub Actions from the tagged source, never on a pers
 `SHA256SUMS.txt` and a signed build provenance attestation.
 
 **Quick check:** in PowerShell, run this in the folder you downloaded to, and compare the result with the line for
-`Capsule-Setup.exe` in that release's `SHA256SUMS.txt`:
+`Capsule-Setup.exe` in that release's `SHA256SUMS.txt` (capital letters don't matter):
 
 ```powershell
 Get-FileHash .\Capsule-Setup.exe -Algorithm SHA256
@@ -95,7 +99,7 @@ The executable is not code-signed yet, so Windows SmartScreen may warn the first
 
 ## Security review
 
-Capsule has been audited twice with Cloudflare's open-source
+Capsule has been audited three times with Cloudflare's open-source
 [security-audit skill](https://github.com/cloudflare/security-audit-skill) (quick profile, source review only).
 
 **Audit 1**, before the first public push, covered the whole app as it was then. It found no confirmed
@@ -106,7 +110,7 @@ vulnerabilities, and all four leads that needed more information were fixed anyw
 - album art is size- and dimension-checked and decoded off the UI thread
 - release notes come from `CHANGELOG.md` instead of pull-request titles
 
-**Audit 2**, before release 1.0.0, covered the installer and uninstaller, start with Windows, the updater, the release
+**Audit 2**, while preparing release 1.0.0, covered the installer and uninstaller, start with Windows, the updater, the release
 workflow, Capsule's single-instance signals, the pop-up hiding and native library loading. It found no confirmed
 vulnerabilities. Two leads that would need a sandboxed test to settle were fixed in code anyway:
 
@@ -114,5 +118,17 @@ vulnerabilities. Two leads that would need a sandboxed test to settle were fixed
   Windows session
 - Capsule's Windows libraries are loaded by their full System32 path, never from the folder Capsule.exe runs in
 
-Not yet audited, and first in line for the next audit: how the alert watchers handle Wi-Fi, drive and app names, the
-installer's setup questions, and Teach Capsule.
+**Audit 3**, just before release 1.0.0, covered what was new since audit 2: the installer's setup questions and its
+quick look at the PC, Teach Capsule, how the alerts handle Wi-Fi, drive, program and app names, and the two fixes
+from audit 2 (both confirmed). It found no confirmed vulnerabilities. Its suggestions were applied before release,
+including:
+
+- another app's duplicate pop-up is hidden only when Capsule shows its own pop-up, never while the PC is locked or the
+  HUD is off
+- a taught app only ever has small always-on-top windows of about the taught size hidden, and Teach never offers
+  Windows' standard dialogs
+- the camera and mic alert shows the program's real file name when its own description doesn't include it
+- the release build checks that it built exactly the commit it publishes
+
+Still open for a future audit: how the .NET runtime bundled inside Capsule.exe loads its own files. That needs a test
+on a sandboxed PC rather than a source review.

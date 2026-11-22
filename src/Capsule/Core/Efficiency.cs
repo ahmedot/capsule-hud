@@ -11,9 +11,12 @@ internal static class Efficiency
     private const int ProcessPowerThrottling = 4;
     private const uint ThrottleExecutionSpeed = 0x1;
 
+    /// <summary>True once Windows accepted the Efficiency mode request, so the settings window can say so.</summary>
+    public static bool IsOn { get; private set; }
+
     /// <summary>
-    /// Turns on Windows "Efficiency mode" (EcoQoS: the green leaf in Task Manager) and below-normal priority,
-    /// so Capsule never competes with games or other apps for CPU time or battery.
+    /// Turns on Windows Efficiency mode (EcoQoS) and below-normal priority, so Capsule never competes with games or
+    /// other apps for CPU time or battery.
     /// </summary>
     public static void Enable()
     {
@@ -28,7 +31,8 @@ internal static class Efficiency
                 ControlMask = ThrottleExecutionSpeed,
                 StateMask = ThrottleExecutionSpeed,
             };
-            SetProcessInformation(self.Handle, ProcessPowerThrottling, ref state, (uint)Marshal.SizeOf<PowerThrottlingState>());
+            IsOn = SetProcessInformation(self.Handle, ProcessPowerThrottling, ref state, (uint)Marshal.SizeOf<PowerThrottlingState>());
+            if (!IsOn) Log.Info($"Windows did not accept efficiency mode (error {Marshal.GetLastPInvokeError()})");
         }
         catch (Exception ex)
         {
@@ -121,6 +125,17 @@ internal sealed class RegistryChangeWatcher : IDisposable
         {
             if (_disposed) return;
             Thread.Sleep(300); // changes come in bursts
+
+            // Watch again before reading, so a change that lands while the handler reads still wakes us up.
+            try
+            {
+                Arm();
+            }
+            catch (ObjectDisposedException)
+            {
+                return; // shutting down
+            }
+
             try
             {
                 _changed();
@@ -128,15 +143,6 @@ internal sealed class RegistryChangeWatcher : IDisposable
             catch (Exception ex)
             {
                 Log.Error("Registry change handler failed", ex);
-            }
-
-            try
-            {
-                Arm();
-            }
-            catch (ObjectDisposedException)
-            {
-                // Shutting down.
             }
         }, null, Timeout.Infinite, executeOnlyOnce: true);
         return true;

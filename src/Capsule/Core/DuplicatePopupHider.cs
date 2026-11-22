@@ -6,8 +6,8 @@ using Capsule.Settings;
 
 namespace Capsule.Core;
 
-/// <summary>A small pop-up from another app, found while teaching Capsule.</summary>
-internal sealed record PopupCandidate(IntPtr Window, string App, string ExePath, string WindowClass);
+/// <summary>A small pop-up from another app, found while teaching Capsule. Width and height are at 100% scaling.</summary>
+internal sealed record PopupCandidate(IntPtr Window, string App, string ExePath, string WindowClass, int Width, int Height);
 
 /// <summary>
 /// Some keyboard apps show their own pop-up next to Capsule's. Right after Capsule shows its own (and only then) this
@@ -24,13 +24,19 @@ internal sealed class DuplicatePopupHider : IDisposable
         new("logioptionsplus_agent", "QWindowIcon", "Logi Options+", "logioptionsplus.exe"),
     ];
 
-    private static readonly TimeSpan ArmFor = TimeSpan.FromMilliseconds(1500);
-    private const int MaxPopupSize = 600; // pixels at 100% scaling; the pop-ups are small, the apps' main windows are not
+    private const long ArmForMs = 1500;
+    internal const int MaxPopupSize = 600; // pixels at 100% scaling; the pop-ups are small, the apps' main windows are not
+
+    // The standard Windows dialog class. Many apps use it for their own small dialogs, so a rule for it would hide
+    // more than the one pop-up the user picked.
+    internal const string DialogClass = "#32770";
 
     private readonly DispatcherTimer _timer;
     private readonly Func<IReadOnlyList<TaughtPopup>> _taught;
-    private DateTime _until;
-    private DateTime _lockKeyUntil;
+
+    // Milliseconds on the system's uptime clock, which changing the date or time can't move.
+    private long _until;
+    private long _lockKeyUntil;
 
     public DuplicatePopupHider(Dispatcher ui, Func<IReadOnlyList<TaughtPopup>> taught)
     {
@@ -39,20 +45,20 @@ internal sealed class DuplicatePopupHider : IDisposable
         _timer.Tick += (_, _) =>
         {
             HideNow();
-            if (DateTime.UtcNow >= _until) _timer.Stop();
+            if (Environment.TickCount64 >= _until) _timer.Stop();
         };
     }
 
     public bool Enabled { get; set; }
 
     /// <summary>
-    /// Capsule is about to show its own pop-up: hide a duplicate now and for the next moment. Lock keys cover the
+    /// Capsule has just shown its own pop-up: hide a duplicate now and for the next moment. Lock keys cover the
     /// built-in keyboard apps; volume, mic and brightness only matter for apps the user taught.
     /// </summary>
     public void Arm(bool lockKey = true)
     {
         if (!Enabled || (!lockKey && _taught().Count == 0)) return;
-        _until = DateTime.UtcNow + ArmFor;
+        _until = Environment.TickCount64 + ArmForMs;
         if (lockKey) _lockKeyUntil = _until; // the built-in keyboard apps only show lock-key pop-ups
         HideNow();
         _timer.Start();
@@ -103,6 +109,24 @@ internal sealed class DuplicatePopupHider : IDisposable
         return null;
     }
 
+    /// <summary>
+    /// Opens the keyboard app's settings program. The path is checked again at click time, so only an installed program
+    /// under Program Files is ever started, and it starts in its own folder rather than the one Capsule was run from.
+    /// </summary>
+    public static void OpenSettingsApp(string? path)
+    {
+        if (path is null || !File.Exists(path) || !IsInstalledLocation(path)) return;
+        try
+        {
+            var start = new ProcessStartInfo(path) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(path)! };
+            Process.Start(start)?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Could not open the keyboard app", ex);
+        }
+    }
+
     /// <summary>True for a file under Program Files (64- or 32-bit), where only administrators can write.</summary>
     public static bool IsInstalledLocation(string path)
     {
@@ -133,7 +157,7 @@ internal sealed class DuplicatePopupHider : IDisposable
                 if (!IsWindowVisible(window)) return true;
                 var className = ClassOf(window);
                 if (className.Length == 0) return true;
-                var known = DateTime.UtcNow < _lockKeyUntil
+                var known = Environment.TickCount64 < _lockKeyUntil
                     ? Known.FirstOrDefault(k => className.Contains(k.ClassContains, StringComparison.Ordinal))
                     : null;
                 // Taught apps: only their small always-on-top windows, like the one the user picked.
@@ -145,7 +169,9 @@ internal sealed class DuplicatePopupHider : IDisposable
                 if (image is null) return true;
                 var isKnown = known is not null
                     && string.Equals(Path.GetFileNameWithoutExtension(image), known.ProcessName, StringComparison.OrdinalIgnoreCase);
-                if (isKnown || taught.Any(t => t.Matches(image, className))) ShowWindow(window, SwHide);
+                var isTaught = classTaught && TrySize(window, out var width, out var height)
+                    && taught.Any(t => t.Matches(image, className) && t.FitsSize(width, height));
+                if (isKnown || isTaught) ShowWindow(window, SwHide);
             }
             catch
             {
@@ -172,7 +198,7 @@ internal sealed class DuplicatePopupHider : IDisposable
 
     /// <summary>
     /// Small always-on-top windows that appeared since <paramref name="before"/> and belong to another app: not Capsule,
-    /// not a part of Windows, and not an app Capsule already handles.
+    /// no program from the Windows folder, no standard dialog, and not an app Capsule already handles.
     /// </summary>
     public static List<PopupCandidate> FindNewPopups(HashSet<IntPtr> before, IReadOnlyList<TaughtPopup> taught)
     {
@@ -190,12 +216,13 @@ internal sealed class DuplicatePopupHider : IDisposable
                 var image = ImagePath(pid);
                 if (image is null || image.StartsWith(windowsFolder, StringComparison.OrdinalIgnoreCase)) return true;
                 var className = ClassOf(window);
-                if (className.Length == 0) return true;
+                if (className.Length == 0 || className == DialogClass) return true;
                 if (Known.Any(k => className.Contains(k.ClassContains, StringComparison.Ordinal)
                                    && string.Equals(Path.GetFileNameWithoutExtension(image), k.ProcessName, StringComparison.OrdinalIgnoreCase))) return true;
                 if (taught.Any(t => t.Matches(image, className))) return true;
                 if (found.Any(f => string.Equals(f.ExePath, image, StringComparison.OrdinalIgnoreCase) && f.WindowClass == className)) return true;
-                found.Add(new PopupCandidate(window, FriendlyName(image), image, className));
+                if (!TrySize(window, out var width, out var height)) return true;
+                found.Add(new PopupCandidate(window, FriendlyName(image), image, className, width, height));
             }
             catch
             {
@@ -207,29 +234,45 @@ internal sealed class DuplicatePopupHider : IDisposable
         return found;
     }
 
-    public static void HideOne(IntPtr window)
+    /// <summary>
+    /// Hides the pop-up the user just taught, if it is still showing. The window is checked again first (same program,
+    /// same class, still small and on top) because it may have closed and its handle gone to another window since.
+    /// </summary>
+    public static void HideOne(PopupCandidate popup)
     {
-        if (window != IntPtr.Zero && IsWindowVisible(window)) ShowWindow(window, SwHide);
+        var window = popup.Window;
+        if (window == IntPtr.Zero || !IsWindowVisible(window)) return;
+        if (ClassOf(window) != popup.WindowClass || !IsSmall(window) || !IsTopmost(window)) return;
+        GetWindowThreadProcessId(window, out var pid);
+        if (!string.Equals(ImagePath(pid), popup.ExePath, StringComparison.OrdinalIgnoreCase)) return;
+        ShowWindow(window, SwHide);
     }
 
     private static string FriendlyName(string exe)
     {
-        try
+        // Version text is only read from a program on a drive letter, the same rule the camera and mic alerts use.
+        if (OnDriveLetter(exe))
         {
-            var info = FileVersionInfo.GetVersionInfo(exe);
-            foreach (var name in new[] { info.FileDescription, info.ProductName })
+            try
             {
-                var clean = DisplayText.Clean(name, 60);
-                if (clean.Length > 0) return clean;
+                var info = FileVersionInfo.GetVersionInfo(exe);
+                foreach (var name in new[] { info.FileDescription, info.ProductName })
+                {
+                    var clean = DisplayText.Clean(name, 60);
+                    if (clean.Length > 0) return clean;
+                }
             }
-        }
-        catch
-        {
-            // Fall back to the file name.
+            catch
+            {
+                // Fall back to the file name.
+            }
         }
 
         return DisplayText.Clean(Path.GetFileNameWithoutExtension(exe), 60);
     }
+
+    private static bool OnDriveLetter(string path) =>
+        path.Length > 3 && char.IsAsciiLetter(path[0]) && path[1] == ':' && path[2] == '\\';
 
     private static string ClassOf(IntPtr window)
     {
@@ -237,13 +280,21 @@ internal sealed class DuplicatePopupHider : IDisposable
         return GetClassNameW(window, name, name.Capacity) == 0 ? "" : name.ToString();
     }
 
-    // "Small" is measured at the window's own scaling, so a pop-up counts the same at 100% and at 250%.
-    private static bool IsSmall(IntPtr window)
+    private static bool IsSmall(IntPtr window) =>
+        TrySize(window, out var width, out var height) && width <= MaxPopupSize && height <= MaxPopupSize;
+
+    // The window's size at 100% scaling. It's measured against its screen's scaling rather than the window's own,
+    // because Windows stretches apps that don't handle scaling themselves, so they look bigger than they think they are.
+    private static bool TrySize(IntPtr window, out int width, out int height)
     {
+        width = height = 0;
         if (!GetWindowRect(window, out var r) || r.Right <= r.Left || r.Bottom <= r.Top) return false;
-        var dpi = GetDpiForWindow(window);
-        var limit = MaxPopupSize * (dpi > 0 ? dpi : 96) / 96;
-        return r.Right - r.Left <= limit && r.Bottom - r.Top <= limit;
+        var dpi = GetDpiForMonitor(MonitorFromWindow(window, MonitorDefaultToNearest), EffectiveDpi, out var x, out _) == 0 && x > 0
+            ? (int)x
+            : 96;
+        width = (r.Right - r.Left) * 96 / dpi;
+        height = (r.Bottom - r.Top) * 96 / dpi;
+        return true;
     }
 
     private static bool IsTopmost(IntPtr window) => (GetWindowLongW(window, GwlExStyle) & WsExTopmost) != 0;
@@ -265,6 +316,8 @@ internal sealed class DuplicatePopupHider : IDisposable
     }
 
     private const uint QueryLimitedInformation = 0x1000;
+    private const uint MonitorDefaultToNearest = 2;
+    private const int EffectiveDpi = 0; // MDT_EFFECTIVE_DPI
     private const int GwlExStyle = -20;
     private const int WsExTopmost = 0x8;
     private const int SwHide = 0;
@@ -290,7 +343,10 @@ internal sealed class DuplicatePopupHider : IDisposable
     private static extern int GetWindowLongW(IntPtr window, int index);
 
     [DllImport("user32.dll")]
-    private static extern int GetDpiForWindow(IntPtr window);
+    private static extern IntPtr MonitorFromWindow(IntPtr window, uint flags);
+
+    [DllImport("shcore.dll")]
+    private static extern int GetDpiForMonitor(IntPtr monitor, int type, out uint dpiX, out uint dpiY);
 
     [DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr window, out Rect rect);

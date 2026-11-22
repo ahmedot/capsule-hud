@@ -36,15 +36,16 @@ internal sealed class HudPresenter
         };
     }
 
-    public void Show(HudItem item)
+    /// <summary>Shows the pop-up now or after the current one. False when it won't be shown (HUD off, or queue full).</summary>
+    public bool Show(HudItem item)
     {
-        if (!_settings().HudEnabled) return;
+        if (!_settings().HudEnabled) return false;
 
         if (item.ReplaceKey is not null && !_closing && _current?.ReplaceKey == item.ReplaceKey)
         {
             _current.CopyFrom(item); // update the open pill in place
             RestartHold();
-            return;
+            return true;
         }
 
         if (_current is null && !_closing)
@@ -53,15 +54,25 @@ internal sealed class HudPresenter
         }
         else if (item.ReplaceKey is not null || _current?.ReplaceKey is not null)
         {
-            // Live items jump the line; a live pill gives way to anything new.
+            // Live items jump the line, and a live pill gives way to anything new. Alerts already waiting still show
+            // afterwards; only out-of-date live updates (an older volume level, say) are dropped.
+            var waiting = _queue.Where(q => q.ReplaceKey is null).Take(MaxQueue).ToList();
             _queue.Clear();
-            _queue.Enqueue(item);
+            if (item.ReplaceKey is not null) _queue.Enqueue(item);
+            foreach (var alert in waiting) _queue.Enqueue(alert);
+            if (item.ReplaceKey is null) _queue.Enqueue(item);
             CloseThenNext();
         }
         else if (_queue.Count < MaxQueue)
         {
             _queue.Enqueue(item);
         }
+        else
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private void Open(HudItem item)

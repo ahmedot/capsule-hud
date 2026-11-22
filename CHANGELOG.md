@@ -5,10 +5,12 @@
 First release.
 
 - **One-click install**: download `Capsule-Setup.exe`, open it, click **Install**. It installs just for you (no admin
-  rights), adds Capsule to the Start menu and to Settings › Apps, starts it with Windows (you can switch that off) and
-  starts it straight away. *Try it without installing* runs it in place instead. Uninstall from Settings › Apps.
-- **Quick setup questions** while it installs, picked by a local look at the PC (headphones it found, games,
-  keyboard languages, keyboard app, laptop battery), each with a recommended answer and a Skip button.
+  rights), adds Capsule to the Start menu and to Windows Settings › Apps, starts it with Windows (you can switch that
+  off) and starts it straight away. *Try it without installing* runs it in place instead. Uninstall from Windows
+  Settings › Apps.
+- **Quick setup questions** while it installs: where it pops up, and others picked by a local look at the PC
+  (headphones, games, keyboard languages, keyboard app, laptop battery), each with a recommended answer and a Skip
+  button.
 - **Capsule HUD**: one pill-shaped, animated pop-up. The icon appears first, the pill opens from the middle, then
   closes back the same way. It never takes focus and clicks pass through it.
 - **Devices and sound**: headphones, game controllers (with battery when they report it), volume and mute, microphone
@@ -23,9 +25,9 @@ First release.
 - **Make it yours**: position (one of six spots), monitor, size, dark / light / same-as-Windows, how long it stays,
   with a live preview. The HUD uses your Windows accent color (brightened if it's too dark to read), or switch that
   off to pick one of six colors.
-- **One pop-up, not two**: hides the Windows volume / brightness pop-up (experimental, on by default), and Logi
-  Options+' own Caps Lock / Num Lock pop-up, with a tip and a button to switch that off in Logi Options+ too.
-  **Teach Capsule** handles any other app: press the key, confirm the app it names, and its pop-up is hidden too.
+- **One pop-up, not two**: hides the Windows volume / brightness pop-up (experimental, on by default), and the Caps
+  Lock / Num Lock pop-up from Logi Options+, with a tip and a button to switch that off in Logi Options+ too.
+  **Teach Capsule** handles most other apps: press the key, confirm the app it names, and its pop-up is hidden too.
 - **One color rule** for every pop-up: accent for on or connected, gray for off, red only for real warnings.
 - **Updates**: a daily check of GitHub releases (can be turned off); installs only when you agree, after verifying the
   download's size and SHA-256.

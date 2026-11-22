@@ -49,7 +49,7 @@ internal static class SetupQuestions
             list.Add(new("Do you play games on this PC?", $"We noticed {gaming} here.",
             [
                 new(Glyphs.Controller, "Yes, I play games",
-                    "No \"CPU or GPU is busy\" warnings, since games keep them busy. Heat warnings stay on.",
+                    "No \"Busy CPU or GPU\" warnings, since games keep them busy. Heat warnings stay on.",
                     s => s.HudCpuGpu = false, Recommended: true),
                 new(Glyphs.Gauge, "Not really", "Warn me when an app keeps my CPU or GPU busy", s => s.HudCpuGpu = true),
             ]));

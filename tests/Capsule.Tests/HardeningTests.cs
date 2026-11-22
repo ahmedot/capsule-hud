@@ -5,9 +5,12 @@ namespace Capsule.Tests;
 
 public class HardeningTests
 {
-    [Fact]
-    public void A_normal_run_is_not_treated_as_started_as_administrator() =>
-        Assert.False(Installer.StartedAsAdministrator());
+    [Theory]
+    [InlineData(1, false)] // Default: UAC off or the built-in Administrator, where every program runs this way
+    [InlineData(2, true)]  // Full: the person chose "Run as administrator"
+    [InlineData(3, false)] // Limited: a normal start
+    public void Only_a_chosen_administrator_start_is_refused(int elevationType, bool refused) =>
+        Assert.Equal(refused, Installer.IsRaisedByChoice(elevationType));
 
     [Fact]
     public void Keyboard_app_must_live_under_program_files()

@@ -23,14 +23,14 @@ internal sealed class WindowsOsdHider : IDisposable
     private const int ShowMinimized = 6;      // SW_MINIMIZE
     private const int ShowRestored = 9;       // SW_RESTORE
     private const int Hide = 0;               // SW_HIDE
-    private static readonly TimeSpan ArmedFor = TimeSpan.FromSeconds(2);
+    private const long ArmedForMs = 2000;
 
     private readonly DispatcherTimer _fast;   // while a pop-up may be appearing
     private readonly DispatcherTimer _steady; // keeps the found window minimized
     private IntPtr _osdHost;
     private uint _osdOwner;
     private string _osdClass = "";
-    private DateTime _armedUntil;
+    private long _armedUntil; // Environment.TickCount64, which date and time changes can't move
     private bool _enabled;
 
     public WindowsOsdHider(Dispatcher ui)
@@ -62,7 +62,7 @@ internal sealed class WindowsOsdHider : IDisposable
     public void Arm()
     {
         if (!_enabled) return;
-        _armedUntil = DateTime.UtcNow + ArmedFor;
+        _armedUntil = Environment.TickCount64 + ArmedForMs;
         KeepHidden();
         _fast.Start();
     }
@@ -71,7 +71,7 @@ internal sealed class WindowsOsdHider : IDisposable
 
     private void FastTick()
     {
-        if (DateTime.UtcNow > _armedUntil)
+        if (Environment.TickCount64 > _armedUntil)
         {
             _fast.Stop();
             return;
@@ -107,13 +107,25 @@ internal sealed class WindowsOsdHider : IDisposable
             return;
         }
 
-        if (IsWindowVisible(_osdHost) && !IsIconic(_osdHost)) ShowWindow(_osdHost, ShowMinimized);
+        // Only ever the small, untitled pop-up: if Explorer reuses the window for something else, leave it alone.
+        if (IsWindowVisible(_osdHost) && !IsIconic(_osdHost) && GetWindowTextLengthW(_osdHost) == 0 && IsPopupSized(_osdHost))
+        {
+            ShowWindow(_osdHost, ShowMinimized);
+        }
     }
 
     private bool IsSameWindow(IntPtr window)
     {
         GetWindowThreadProcessId(window, out var pid);
         return pid == _osdOwner && ClassOf(window) == _osdClass;
+    }
+
+    // The pop-up is small. Full-screen shell surfaces (task switcher, etc.) are never touched.
+    private static bool IsPopupSized(IntPtr window)
+    {
+        if (!GetWindowRect(window, out var rect)) return false;
+        var screen = Interop.NativeMethods.GetWorkArea(screenWithMouse: false);
+        return rect.Right - rect.Left <= screen.Width / 3 && rect.Bottom - rect.Top <= screen.Height / 4;
     }
 
     private static string ClassOf(IntPtr window)
@@ -169,12 +181,7 @@ internal sealed class WindowsOsdHider : IDisposable
             if (GetWindowTextLengthW(window) != 0) continue;
 
             GetWindowThreadProcessId(window, out var pid);
-            if (!IsExplorer(pid)) continue;
-
-            // The pop-up is small. Full-screen shell surfaces (task switcher, etc.) are never touched.
-            if (!GetWindowRect(window, out var rect)) continue;
-            var screen = Interop.NativeMethods.GetWorkArea(screenWithMouse: false);
-            if (rect.Right - rect.Left > screen.Width / 3 || rect.Bottom - rect.Top > screen.Height / 4) continue;
+            if (!IsExplorer(pid) || !IsPopupSized(window)) continue;
 
             return window;
         }

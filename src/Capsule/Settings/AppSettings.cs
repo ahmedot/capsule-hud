@@ -39,7 +39,7 @@ public enum AppTheme { System, Light, Dark }
 
 public sealed class AppSettings
 {
-    /// <summary>Accent value meaning "use the Windows accent colour" (the default).</summary>
+    /// <summary>Accent value meaning "use the Windows accent color" (the default).</summary>
     public const string WindowsAccent = "windows";
     public const string DefaultAccent = WindowsAccent;
     public const double MinSeconds = 1.0;
@@ -163,6 +163,8 @@ public sealed class AppSettings
                 App = DisplayText.Clean(t.App, 60),
                 ExePath = (t.ExePath ?? "").Trim(),
                 WindowClass = (t.WindowClass ?? "").Trim(),
+                Width = t.Width,
+                Height = t.Height,
             })
             .Where(t => t.IsValid)
             .DistinctBy(t => (t.ExePath.ToUpperInvariant(), t.WindowClass))
@@ -336,7 +338,9 @@ public static class SettingsStore
     }
 }
 
-/// <summary>One app whose own pop-up the user asked Capsule to hide: matched by its full program path and window class.</summary>
+/// <summary>
+/// One app whose own pop-up the user asked Capsule to hide: matched by its full program path, window class and size.
+/// </summary>
 public sealed class TaughtPopup
 {
     public string App { get; set; } = "";
@@ -345,10 +349,18 @@ public sealed class TaughtPopup
 
     public string WindowClass { get; set; } = "";
 
+    /// <summary>The pop-up's size at 100% scaling, so other small windows of the same app aren't mistaken for it.</summary>
+    public int Width { get; set; }
+
+    public int Height { get; set; }
+
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsValid =>
         App.Length > 0
         && WindowClass.Length is > 0 and <= 256
+        && WindowClass != Core.DuplicatePopupHider.DialogClass
+        && Width is > 0 and <= Core.DuplicatePopupHider.MaxPopupSize
+        && Height is > 0 and <= Core.DuplicatePopupHider.MaxPopupSize
         && ExePath.Length <= 1024
         && Path.IsPathFullyQualified(ExePath)
         && ExePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
@@ -358,4 +370,11 @@ public sealed class TaughtPopup
     public bool Matches(string exePath, string windowClass) =>
         string.Equals(WindowClass, windowClass, StringComparison.Ordinal)
         && string.Equals(ExePath, exePath, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// About the taught size: a pop-up's text can make it a little wider or narrower, but a picture-in-picture window or
+    /// a notification of the same app is a different size and is left alone.
+    /// </summary>
+    public bool FitsSize(int width, int height) =>
+        Math.Abs(width - Width) <= Width / 4 + 16 && Math.Abs(height - Height) <= Height / 4 + 16;
 }

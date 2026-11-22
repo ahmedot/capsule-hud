@@ -4,7 +4,7 @@ using Windows.UI.ViewManagement;
 namespace Capsule.Core;
 
 /// <summary>
-/// The accent colour chosen in Windows Settings > Personalization > Colors, in the shades Windows itself uses:
+/// The accent color chosen in Windows Settings > Personalization > Colors, in the shades Windows itself uses:
 /// a lighter one on dark backgrounds and a darker one on light backgrounds. Read fresh each time, so a change in
 /// Windows shows up the next time Capsule draws something.
 /// </summary>
@@ -26,7 +26,7 @@ internal static class WindowsAccent
     public static Color Dark2 => Read(UIColorType.AccentDark2);
 
     /// <summary>
-    /// Keeps the hue but mixes in white until the colour is at least <see cref="MinBrightness"/> (relative
+    /// Keeps the hue but mixes in white until the color is at least <see cref="MinBrightness"/> (relative
     /// luminance), so dark accents such as deep purple stay readable on a dark background.
     /// </summary>
     internal static Color Bright(Color c)
@@ -61,7 +61,7 @@ internal static class WindowsAccent
     {
         try
         {
-            // A fresh lookup each time (only when something is drawn): no watcher, and never a stale colour.
+            // A fresh lookup each time (only when something is drawn): no watcher, and never a stale color.
             var c = new UISettings().GetColorValue(type);
             return Color.FromRgb(c.R, c.G, c.B);
         }

@@ -185,7 +185,7 @@ public partial class HudWindow : Window
         Pill.CornerRadius = new CornerRadius(_height / 2);
         ContentShift.X = shift;
 
-        // The clip stays centred on the stage while the content slides underneath it.
+        // The clip stays centered on the stage while the content slides underneath it.
         _clip.Rect = new Rect((_fullWidth - width) / 2 - shift, 0, width, _height);
         _clip.RadiusX = _clip.RadiusY = _height / 2;
         // Text comes in last, sliding a few pixels as it fades in.

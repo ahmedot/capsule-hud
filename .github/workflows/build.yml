@@ -47,6 +47,13 @@ jobs:
         with:
           persist-credentials: false
 
+      # The files are built from exactly the commit this run is for, the same one the release later attests.
+      - name: Check the commit
+        shell: pwsh
+        run: |
+          $head = git rev-parse HEAD
+          if ($head -ne $env:GITHUB_SHA) { throw "Checked out $head, expected $env:GITHUB_SHA" }
+
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           global-json-file: global.json
@@ -119,8 +126,8 @@ jobs:
           {
             printf '### Download\n\n'
             printf '**[Download Capsule-Setup.exe](%s)**, open it, click **Install** and answer a few one-tap questions (or skip them). Capsule starts right away and, unless you switch it off, starts with Windows.\n\n' "$url"
-            printf 'Capsule is new and not code-signed yet, so Windows may show "Windows protected your PC". Click **More info**, then **Run anyway**. Your browser may also say the file is not commonly downloaded; choose **Keep**.\n\n'
-            printf 'On a Windows 11 Arm PC, download `Capsule-win-arm64.exe` instead: it is the native Arm version and installs the same way. `Capsule-win-x64.exe` is used by automatic updates, and `SHA256SUMS.txt` is for checking downloads.\n\n'
+            printf 'Capsule is new and not code-signed yet. If your browser says the file is not commonly downloaded, choose **Keep** (in Edge it is under **...**). If Windows then shows "Windows protected your PC", click **More info**, then **Run anyway**.\n\n'
+            printf 'On a Windows 11 Arm PC, download `Capsule-win-arm64.exe` instead: it is the native Arm version and installs the same way. Automatic updates use `Capsule-win-x64.exe` or `Capsule-win-arm64.exe` to match the installed version, and `SHA256SUMS.txt` is for checking downloads.\n\n'
             printf '### Changes\n\n'
             cat changes.md
           } > notes.md

@@ -215,19 +215,23 @@ internal sealed class PrivacyWatcher : IDisposable
         previous = now;
     }
 
+    // Windows keeps one record per app that ever used the device. Real PCs have a few hundred at most; the cap only
+    // stops a flooded list from making each check slow.
+    private const int MaxRecords = 5000;
+
     private static Dictionary<string, string> InUse(string capability)
     {
         var apps = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         using var root = Registry.CurrentUser.OpenSubKey($@"{Store}\{capability}");
         if (root is null) return apps;
 
-        foreach (var name in root.GetSubKeyNames().Take(500))
+        foreach (var name in root.GetSubKeyNames().Take(MaxRecords))
         {
             using var key = root.OpenSubKey(name);
             if (key is null) continue;
             if (name.Equals("NonPackaged", StringComparison.OrdinalIgnoreCase))
             {
-                foreach (var exe in key.GetSubKeyNames().Take(500))
+                foreach (var exe in key.GetSubKeyNames().Take(MaxRecords))
                 {
                     using var app = key.OpenSubKey(exe);
                     if (app is not null && IsActive(app)) apps[exe] = DesktopAppName(exe);
@@ -258,7 +262,14 @@ internal sealed class PrivacyWatcher : IDisposable
             {
                 var info = FileVersionInfo.GetVersionInfo(path);
                 var described = DisplayText.Clean(info.FileDescription, 40);
-                if (described.Length > 0) return described;
+                // A program writes its own description, so name the real file too unless the description already does.
+                var file = DisplayText.Clean(Path.GetFileName(path), 32);
+                if (described.Length > 0)
+                {
+                    return described.Contains(Path.GetFileNameWithoutExtension(file), StringComparison.OrdinalIgnoreCase)
+                        ? described
+                        : $"{described} ({file})";
+                }
             }
         }
         catch

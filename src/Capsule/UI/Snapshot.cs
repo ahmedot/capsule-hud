@@ -21,7 +21,8 @@ internal static class Snapshot
         try
         {
             Directory.CreateDirectory(folder);
-            var dark = new AppSettings { HudAccent = "#34D17A" }; // fixed colour so README images stay the same on any PC
+            Efficiency.Enable(); // as the running app does, so the Home page shows its Efficiency mode chip
+            var dark = new AppSettings { HudAccent = "#34D17A" }; // fixed color so README images stay the same on any PC
             var light = new AppSettings { HudTheme = HudTheme.Light, HudAccent = "#4CC2FF" };
             var violet = new AppSettings { HudAccent = "#8B7CFF" };
 

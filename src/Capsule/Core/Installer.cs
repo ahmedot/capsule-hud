@@ -208,7 +208,12 @@ internal static class Installer
         }
 
         quitRunningCopy(); // it puts the Windows volume pop-up back as it closes
-        for (var i = 0; i < 100 && !runningCopyGone(); i++) Thread.Sleep(100);
+        var stopped = runningCopyGone();
+        for (var i = 0; i < 100 && !stopped; i++)
+        {
+            Thread.Sleep(100);
+            stopped = runningCopyGone();
+        }
 
         AutoStart.Set(false);
         if (!IsFullPath(InstallFolder) || !IsFullPath(SettingsStore.Folder) || !IsFullPath(Log.Folder)) return;
@@ -221,7 +226,11 @@ internal static class Installer
 
         if (!quiet)
         {
-            System.Windows.MessageBox.Show("Capsule has been removed.", "Uninstall Capsule",
+            var message = stopped
+                ? "Capsule has been removed."
+                : "Capsule has been removed, but a copy that was still running couldn't be closed. Restart your PC, " +
+                  $"then delete this folder if it's still there:\n\n{InstallFolder}";
+            System.Windows.MessageBox.Show(message, "Uninstall Capsule",
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
         }
 
@@ -264,12 +273,26 @@ internal static class Installer
         try
         {
             return GetTokenInformation(token, TokenElevationTypeClass, out var type, sizeof(int), out _)
-                && type == TokenElevationTypeFull;
+                && IsRaisedByChoice(type);
         }
         finally
         {
             CloseHandle(token);
         }
+    }
+
+    /// <summary>TokenElevationTypeFull: the raised half of a split UAC token. Default (1) and Limited (3) are not.</summary>
+    internal static bool IsRaisedByChoice(int elevationType) => elevationType == TokenElevationTypeFull;
+
+    /// <summary>
+    /// True for the SYSTEM account or the services session (for example a deployment tool), where installing would put
+    /// Capsule in a profile nobody signs in to and start it where no one can see it.
+    /// </summary>
+    public static bool RunningAsSystem()
+    {
+        using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+        using var self = Process.GetCurrentProcess();
+        return identity.IsSystem || self.SessionId == 0;
     }
 
     private const uint TokenQuery = 0x0008;

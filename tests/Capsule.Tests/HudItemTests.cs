@@ -19,7 +19,7 @@ public class HudItemTests
     }
 
     [Fact]
-    public void Off_states_are_grey_and_only_warnings_are_red()
+    public void Off_states_are_gray_and_only_warnings_are_red()
     {
         Assert.True(HudItems.Microphone("Mic", muted: true).IsNeutral);
         Assert.True(HudItems.Volume("Speakers", 0.5f, muted: true).IsNeutral);
