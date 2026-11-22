@@ -1,3 +1,4 @@
+using System.Windows.Media;
 using Capsule.Core;
 using Capsule.Settings;
 
@@ -38,16 +39,16 @@ public class AccentTests
     [InlineData(0x10, 0x10, 0x10)] // near black
     public void Dark_accents_are_brightened_for_the_dark_pill(byte r, byte g, byte b)
     {
-        var bright = Capsule.Core.WindowsAccent.Bright(System.Windows.Media.Color.FromRgb(r, g, b));
-        Assert.True(Capsule.Core.WindowsAccent.Luminance(bright) >= Capsule.Core.WindowsAccent.MinBrightness - 0.005);
+        var bright = WindowsAccent.Bright(Color.FromRgb(r, g, b));
+        Assert.True(WindowsAccent.Luminance(bright) >= WindowsAccent.MinBrightness - 0.005);
         Assert.True(bright.R >= r && bright.G >= g && bright.B >= b); // only lighter, never a different colour
     }
 
     [Fact]
     public void Bright_accents_are_left_alone()
     {
-        var mint = System.Windows.Media.Color.FromRgb(0x4B, 0xE3, 0xA2);
-        Assert.Equal(mint, Capsule.Core.WindowsAccent.Bright(mint));
+        var mint = Color.FromRgb(0x4B, 0xE3, 0xA2);
+        Assert.Equal(mint, WindowsAccent.Bright(mint));
     }
 
     [Fact]

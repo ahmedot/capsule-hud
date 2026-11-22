@@ -89,6 +89,8 @@ internal static class Installer
     public static void Install(bool startWithWindows, Action quitRunningCopy, Func<bool> runningCopyGone)
     {
         var source = Environment.ProcessPath ?? throw new InvalidOperationException("Unknown program path");
+        if (Compare() == State.Newer) throw new InvalidOperationException("A newer Capsule is already installed");
+        RequireFullPath(InstallFolder);
 
         var wasRunning = !runningCopyGone();
         quitRunningCopy();
@@ -209,6 +211,7 @@ internal static class Installer
         for (var i = 0; i < 100 && !runningCopyGone(); i++) Thread.Sleep(100);
 
         AutoStart.Set(false);
+        if (!IsFullPath(InstallFolder) || !IsFullPath(SettingsStore.Folder) || !IsFullPath(Log.Folder)) return;
         TryRun(() => File.Delete(ShortcutPath));
         TryRun(() => Registry.CurrentUser.DeleteSubKeyTree(UninstallKey, throwOnMissingSubKey: false));
         // Any copy other than the installed one (for example the downloaded setup file) removes the folder now.
@@ -230,14 +233,15 @@ internal static class Installer
     private static void DeleteInstallFolderAfterExit()
     {
         var folder = InstallFolder;
-        if (folder.IndexOfAny(['"', '%', '^', '&', '|', '<', '>']) >= 0) return;
+        if (!IsFullPath(folder) || folder.IndexOfAny(['"', '%', '^', '&', '|', '<', '>', '!']) >= 0) return;
+        var ping = Path.Combine(Environment.SystemDirectory, "PING.EXE");
 
         try
         {
             // Try once a second for up to a minute: this copy exits a moment after starting the helper.
             var start = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "cmd.exe"))
             {
-                Arguments = $"/d /c for /l %i in (1,1,60) do @(ping -n 2 127.0.0.1 >nul & rd /s /q \"{folder}\" 2>nul & if not exist \"{folder}\" exit /b 0)",
+                Arguments = $"/d /v:off /c for /l %i in (1,1,60) do @(\"{ping}\" -n 2 127.0.0.1 >nul & rd /s /q \"{folder}\" 2>nul & if not exist \"{folder}\" exit /b 0)",
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 WorkingDirectory = Environment.SystemDirectory,
@@ -250,6 +254,48 @@ internal static class Installer
         }
     }
 
+    /// <summary>
+    /// True when this copy was started "as administrator" with UAC on (a raised token the person chose). With UAC off,
+    /// or on the built-in Administrator account, every program runs that way, so that is not treated as a choice.
+    /// </summary>
+    public static bool StartedAsAdministrator()
+    {
+        if (!OpenProcessToken(GetCurrentProcess(), TokenQuery, out var token)) return false;
+        try
+        {
+            return GetTokenInformation(token, TokenElevationTypeClass, out var type, sizeof(int), out _)
+                && type == TokenElevationTypeFull;
+        }
+        finally
+        {
+            CloseHandle(token);
+        }
+    }
+
+    private const uint TokenQuery = 0x0008;
+    private const int TokenElevationTypeClass = 18;
+    private const int TokenElevationTypeFull = 2;
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool GetTokenInformation(IntPtr token, int infoClass, out int info, int length, out int returned);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentProcess();
+
+    [DllImport("kernel32.dll")]
+    private static extern bool CloseHandle(IntPtr handle);
+
+    private static bool IsFullPath(string path) =>
+        Path.IsPathFullyQualified(path) && path.EndsWith("Capsule", StringComparison.OrdinalIgnoreCase);
+
+    private static void RequireFullPath(string path)
+    {
+        if (!IsFullPath(path)) throw new InvalidOperationException("Can't find the user's program folder");
+    }
+
     private static void TryRun(Action action)
     {
         try
@@ -258,9 +304,11 @@ internal static class Installer
         }
         catch (DirectoryNotFoundException)
         {
+            // Already gone.
         }
         catch (FileNotFoundException)
         {
+            // Already gone.
         }
         catch (Exception ex)
         {

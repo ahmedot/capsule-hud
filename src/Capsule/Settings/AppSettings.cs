@@ -121,6 +121,11 @@ public sealed class AppSettings
     // Controllers
     public bool IgnoreVirtualControllers { get; set; } = true;
 
+    /// <summary>Apps taught with "Teach Capsule": their small pop-ups are hidden right after Capsule shows its own.</summary>
+    public List<TaughtPopup> TaughtPopups { get; set; } = [];
+
+    private const int MaxTaughtPopups = 16;
+
     /// <summary>Your own names for devices: Windows name -> name shown in the HUD and tray.</summary>
     public Dictionary<string, string> DeviceNames { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -151,6 +156,19 @@ public sealed class AppSettings
     /// <summary>Repairs anything out of range so a hand-edited or damaged file can never break the app.</summary>
     public AppSettings Normalize()
     {
+        TaughtPopups = (TaughtPopups ?? [])
+            .Where(t => t is not null)
+            .Select(t => new TaughtPopup
+            {
+                App = DisplayText.Clean(t.App, 60),
+                ExePath = (t.ExePath ?? "").Trim(),
+                WindowClass = (t.WindowClass ?? "").Trim(),
+            })
+            .Where(t => t.IsValid)
+            .DistinctBy(t => (t.ExePath.ToUpperInvariant(), t.WindowClass))
+            .Take(MaxTaughtPopups)
+            .ToList();
+
         SelectedHeadphones = CleanNames(SelectedHeadphones);
         FallbackDevice = CleanName(FallbackDevice);
         MicDevice = CleanName(MicDevice);
@@ -316,4 +334,28 @@ public static class SettingsStore
             // Best effort only.
         }
     }
+}
+
+/// <summary>One app whose own pop-up the user asked Capsule to hide: matched by its full program path and window class.</summary>
+public sealed class TaughtPopup
+{
+    public string App { get; set; } = "";
+
+    public string ExePath { get; set; } = "";
+
+    public string WindowClass { get; set; } = "";
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsValid =>
+        App.Length > 0
+        && WindowClass.Length is > 0 and <= 256
+        && ExePath.Length <= 1024
+        && Path.IsPathFullyQualified(ExePath)
+        && ExePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+        && !ExePath.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.Windows).TrimEnd('\\') + "\\",
+            StringComparison.OrdinalIgnoreCase);
+
+    public bool Matches(string exePath, string windowClass) =>
+        string.Equals(WindowClass, windowClass, StringComparison.Ordinal)
+        && string.Equals(ExePath, exePath, StringComparison.OrdinalIgnoreCase);
 }

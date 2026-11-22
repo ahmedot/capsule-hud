@@ -110,6 +110,22 @@ public partial class App : Application
         if (!HasArgument(e.Args, QuitArgument) && !HasArgument(e.Args, Updater.UpdatedArgument)
             && Installer.ShouldInstall(e.Args))
         {
+            if (Installer.StartedAsAdministrator())
+            {
+                // Installing "as administrator" would put Capsule in the administrator's profile and start it elevated.
+                Log.Info("Setup was started as administrator; not installing");
+                if (!HasArgument(e.Args, Installer.InstallArgument))
+                {
+                    var file = Path.GetFileName(Environment.ProcessPath) ?? "Capsule-Setup.exe";
+                    MessageBox.Show($"Please open {file} normally, not as administrator. " +
+                                    "Capsule installs just for you and needs no admin rights.",
+                        "Install Capsule", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+
+                Shutdown(1);
+                return;
+            }
+
             if (Installer.Compare() == Installer.State.Newer)
             {
                 // A newer Capsule is already installed: just open it rather than going back a version.
@@ -215,7 +231,7 @@ public partial class App : Application
         if (firstRun) SettingsStore.Save(Settings);
         if (installed)
         {
-            // Straight after the installer: a friendly hello in the real HUD, nothing to set up.
+            // Straight after the installer: say hello in the HUD instead of opening settings.
             Show(HudItems.Info(Glyphs.Checkmark, "Capsule is ready", "Enjoy", HudTone.Good));
         }
         else if (firstRun)
@@ -232,7 +248,7 @@ public partial class App : Application
         }
 
         // Hand back the memory used while starting up.
-        var trim = new DispatcherTimer(TimeSpan.FromSeconds(20), DispatcherPriority.Background, (s, _) =>
+        _ = new DispatcherTimer(TimeSpan.FromSeconds(20), DispatcherPriority.Background, (s, _) =>
         {
             ((DispatcherTimer)s!).Stop();
             Efficiency.TrimMemory();
@@ -248,7 +264,7 @@ public partial class App : Application
         _notifications = new AudioNotifications(Dispatcher);
         _osdHider = new WindowsOsdHider(Dispatcher);
         _osdHider.SetEnabled(Settings.HideWindowsOsd);
-        _duplicateHider = new DuplicatePopupHider(Dispatcher) { Enabled = Settings.HideDuplicatePopups };
+        _duplicateHider = new DuplicatePopupHider(Dispatcher, () => Settings.TaughtPopups) { Enabled = Settings.HideDuplicatePopups };
 
         _switcher.HeadphonesChanged += OnHeadphonesChanged;
         _switcher.Switched += () => _volume.BeQuiet();
@@ -339,7 +355,9 @@ public partial class App : Application
         w.Changed += percent =>
         {
             _osdHider?.Arm();
-            if (Settings.HudBrightness) Show(HudItems.Brightness(percent));
+            if (!Settings.HudBrightness) return;
+            _duplicateHider?.Arm(lockKey: false);
+            Show(HudItems.Brightness(percent));
         };
         w.Start();
         return w;
@@ -396,7 +414,7 @@ public partial class App : Application
         var w = new NetworkWatcher(Dispatcher);
         w.Changed += (glyph, title, status, good) =>
         {
-            if (Settings.HudNetwork) Show(HudItems.Info(glyph, title, status, good ? HudTone.Good : HudTone.Bad, replaceKey: "network"));
+            if (Settings.HudNetwork) Show(HudItems.Info(glyph, title, status, good ? HudTone.Good : glyph == Glyphs.Vpn ? HudTone.Neutral : HudTone.Bad, replaceKey: "network"));
         };
         w.Start();
         return w;
@@ -408,7 +426,7 @@ public partial class App : Application
         w.Changed += (title, status, percent, warning) =>
         {
             if (!Settings.HudPower) return;
-            var item = HudItems.Info(warning ? Glyphs.Warning : Glyphs.Charging, title, status, warning ? HudTone.Bad : HudTone.Good);
+            var item = HudItems.Info(warning ? Glyphs.Warning : Glyphs.Charging, title, status, warning ? HudTone.Bad : title == "Charging" ? HudTone.Good : HudTone.Neutral); // unplugging is normal
             item.Battery = percent;
             Show(item);
         };
@@ -564,7 +582,18 @@ public partial class App : Application
     // Only listen on a control signal Capsule created itself; never adopt one another program made first.
     private static EventWaitHandle? CreateSignal(string name)
     {
-        var signal = new EventWaitHandle(false, EventResetMode.AutoReset, name, out var created);
+        EventWaitHandle signal;
+        bool created;
+        try
+        {
+            signal = new EventWaitHandle(false, EventResetMode.AutoReset, name, out created);
+        }
+        catch (Exception ex) when (ex is WaitHandleCannotBeOpenedException or UnauthorizedAccessException or IOException)
+        {
+            Log.Error($"Control signal {name} could not be created; ignoring it", ex);
+            return null;
+        }
+
         if (created) return signal;
         signal.Dispose();
         Log.Error($"Control signal {name} already existed; ignoring it");
@@ -663,17 +692,6 @@ public partial class App : Application
         Show(HudItems.Device(Glyphs.Headphones, "Studio Headphones", false));
     }
 
-    /// <summary>One sample HUD, used while changing look settings.</summary>
-    internal void PreviewOne() =>
-        _hud?.Show(new HudItem
-        {
-            ReplaceKey = "preview",
-            Glyph = Glyphs.Headphones,
-            Title = "Studio Headphones",
-            Status = "Connected",
-            Battery = Settings.HudBattery ? 80 : null,
-        });
-
     internal void Quit() => Shutdown();
 
     /// <summary>The name shown for a device: the user's custom name if they set one.</summary>
@@ -685,15 +703,6 @@ public partial class App : Application
         if (DemoMode) return "Studio Headphones";
         var current = Audio.GetDefaultId(EDataFlow.Render, ERole.Multimedia);
         return current is null ? "No sound device" : Shown(Audio.GetEndpoint(current)?.ShortName ?? "Unknown device");
-    }
-
-    internal string StatusLine()
-    {
-        if (DemoMode) return "Auto-switching is on  ·  Sound is playing on Studio Headphones";
-        var current = Audio.GetDefaultId(EDataFlow.Render, ERole.Multimedia);
-        var name = current is null ? "no output" : Shown(Audio.GetEndpoint(current)?.ShortName ?? "unknown");
-        var mode = Settings.AutoSwitch ? "Auto-switching is on" : "Auto-switching is off";
-        return $"{mode}  ·  Sound is playing on {name}";
     }
 
     // ------------------------------------------------------------------ device lists for the settings window
@@ -898,12 +907,16 @@ public partial class App : Application
     private void OnVolumeChanged(AudioEndpoint endpoint, float level, bool muted)
     {
         _osdHider?.Arm();
-        if (Settings.HudVolume) Show(HudItems.Volume(Shown(endpoint.ShortName), level, muted));
+        if (!Settings.HudVolume) return;
+        _duplicateHider?.Arm(lockKey: false);
+        Show(HudItems.Volume(Shown(endpoint.ShortName), level, muted));
     }
 
     private void OnMicMuteChanged(AudioEndpoint endpoint, bool muted)
     {
-        if (Settings.HudMicMute) Show(HudItems.Microphone(Shown(endpoint.ShortName), muted));
+        if (!Settings.HudMicMute) return;
+        _duplicateHider?.Arm(lockKey: false);
+        Show(HudItems.Microphone(Shown(endpoint.ShortName), muted));
     }
 
     // Warn once per connection when headphones or a controller run low.

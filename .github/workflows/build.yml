@@ -118,7 +118,7 @@ jobs:
           url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/Capsule-Setup.exe"
           {
             printf '### Download\n\n'
-            printf '**[Download Capsule-Setup.exe](%s)**, open it and click **Install**. Capsule starts right away and, unless you switch it off, starts with Windows.\n\n' "$url"
+            printf '**[Download Capsule-Setup.exe](%s)**, open it, click **Install** and answer a few one-tap questions (or skip them). Capsule starts right away and, unless you switch it off, starts with Windows.\n\n' "$url"
             printf 'Capsule is new and not code-signed yet, so Windows may show "Windows protected your PC". Click **More info**, then **Run anyway**. Your browser may also say the file is not commonly downloaded; choose **Keep**.\n\n'
             printf 'On a Windows 11 Arm PC, download `Capsule-win-arm64.exe` instead: it is the native Arm version and installs the same way. `Capsule-win-x64.exe` is used by automatic updates, and `SHA256SUMS.txt` is for checking downloads.\n\n'
             printf '### Changes\n\n'

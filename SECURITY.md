@@ -31,8 +31,10 @@ Capsule is designed to have as little power as possible:
 - **Camera and mic alerts read Windows' own privacy records**; Capsule never opens the camera or microphone.
 - **Local files only.** Settings live in `%APPDATA%\Capsule\settings.json` and a small log in `%LOCALAPPDATA%\Capsule\`.
   Downloaded updates are kept in `%LOCALAPPDATA%\Capsule\updates` until the next update or until Capsule is uninstalled.
-- **Capsule's own Windows calls load system libraries only from System32**, never from the folder Capsule.exe sits
-  in. (The .NET and WPF runtime files bundled inside Capsule.exe are unpacked and loaded by .NET itself.)
+- **Capsule's own Windows calls load system libraries only from System32.** A library resolver loads each of the
+  eight Windows libraries Capsule uses by its full System32 path and refuses any other name, so a DLL placed next to
+  Capsule.exe (for example in Downloads) is never used for them. (The .NET and WPF runtime files bundled inside
+  Capsule.exe are unpacked and loaded by .NET itself.)
 - **The installer stays inside your user account.** It copies the program to `%LOCALAPPDATA%\Programs\Capsule`, adds a
   Start menu shortcut, a *Settings › Apps* entry and, if *Start with Windows* is on (the default), a start-up entry,
   all for your account only, and nothing else. The installed copy is a plain
@@ -41,9 +43,21 @@ Capsule is designed to have as little power as possible:
   entry, the settings and the log.
 - **Start with Windows** uses your per-user `Run` registry entry, which you can turn off in Capsule's settings
   (*General › Start with Windows*).
-- **"Hide duplicate pop-ups from keyboard apps"** only acts for 1.5 seconds right after Caps Lock or Num Lock changes.
-  It hides small windows of a known keyboard app's process (checked by the process's file name and the window's class
-  and size), and never changes that app's settings or files.
+- **"Hide duplicate pop-ups from keyboard apps"** only acts for 1.5 seconds right after Capsule shows its own pop-up
+  (Caps Lock or Num Lock; volume, mic and brightness only for apps you taught). It hides small windows (600 px or less
+  at 100% scaling) of a known keyboard app's process, checked by the process's file name and the window's class, or
+  small always-on-top windows of an app you taught with **Teach Capsule**, matched by its full program path and window
+  class. It never changes another app's settings or files and never starts another program.
+- **"Open Logi Options+"** is only offered for a Logi Options+ process in your own Windows session whose program is
+  under *Program Files* (which only administrators can change), and that location is checked again when you click.
+- **Teach Capsule** looks at the windows on your screen only while its window is open, and saves nothing until you
+  confirm an app. It never offers a part of Windows itself.
+- **The installer's setup questions** come from a quick local look at this PC: headphones, game controllers or a
+  Steam install, keyboard languages, a laptop battery and the keyboard app. Nothing from it is saved or sent; only your
+  answers become settings.
+- **The installer refuses to run "as administrator"** (when UAC is on and you chose to elevate it), so it never
+  installs into another account's profile or starts Capsule elevated. It also never replaces a newer installed version
+  with an older one.
 - **The experimental "Hide the Windows volume pop-up" option** (on by default) minimizes one small Explorer window
   (checked by class, size and Explorer's real path) while it's on, and puts it back when you turn the option off or
   quit.
@@ -81,13 +95,24 @@ The executable is not code-signed yet, so Windows SmartScreen may warn the first
 
 ## Security review
 
-Before its first release, Capsule was audited with Cloudflare's open-source
-[security-audit skill](https://github.com/cloudflare/security-audit-skill) (quick profile, source review).
-It found no confirmed vulnerabilities. All four leads that needed more information were fixed anyway:
+Capsule has been audited twice with Cloudflare's open-source
+[security-audit skill](https://github.com/cloudflare/security-audit-skill) (quick profile, source review only).
+
+**Audit 1**, before the first public push, covered the whole app as it was then. It found no confirmed
+vulnerabilities, and all four leads that needed more information were fixed anyway:
 
 - a device choice is ignored when more than one device has that name, so Capsule never guesses
 - untrusted text is cleaned to one line
 - album art is size- and dimension-checked and decoded off the UI thread
 - release notes come from `CHANGELOG.md` instead of pull-request titles
 
-The auto-updater and the system watchers added afterwards then had their own focused review.
+**Audit 2**, before release 1.0.0, covered the installer and uninstaller, start with Windows, the updater, the release
+workflow, Capsule's single-instance signals, the pop-up hiding and native library loading. It found no confirmed
+vulnerabilities. Two leads that would need a sandboxed test to settle were fixed in code anyway:
+
+- the "Open Logi Options+" button only trusts a Logi Options+ installed under Program Files and running in your own
+  Windows session
+- Capsule's Windows libraries are loaded by their full System32 path, never from the folder Capsule.exe runs in
+
+Not yet audited, and first in line for the next audit: how the alert watchers handle Wi-Fi, drive and app names, the
+installer's setup questions, and Teach Capsule.

@@ -58,6 +58,8 @@ public sealed class HudItem : INotifyPropertyChanged
 
     public bool IsBad => _tone == HudTone.Bad;
 
+    public bool IsNeutral => _tone == HudTone.Neutral;
+
     public int? Battery
     {
         get => _battery;
@@ -107,8 +109,6 @@ public sealed class HudItem : INotifyPropertyChanged
 
     public bool HasArt => _art is not null;
 
-    public bool IsNeutral => _tone == HudTone.Neutral;
-
     public void CopyFrom(HudItem other)
     {
         Glyph = other.Glyph;
@@ -131,7 +131,10 @@ public sealed class HudItem : INotifyPropertyChanged
     private void OnChanged(string? name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
-/// <summary>Builds the standard HUD items.</summary>
+/// <summary>
+/// Builds the standard HUD items. One colour rule throughout: the accent colour for on, connected or playing; soft
+/// grey for off, disconnected, muted or paused (nothing is wrong); red only for real warnings.
+/// </summary>
 internal static class HudItems
 {
     public static HudItem Device(string glyph, string name, bool connected, int? battery = null) => new()
@@ -139,7 +142,7 @@ internal static class HudItems
         Glyph = glyph,
         Title = name,
         Status = connected ? "Connected" : "Disconnected",
-        Tone = connected ? HudTone.Good : HudTone.Bad,
+        Tone = connected ? HudTone.Good : HudTone.Neutral,
         Battery = connected ? battery : null,
     };
 
@@ -150,6 +153,7 @@ internal static class HudItems
         Title = device,
         Level = muted ? 0 : level,
         LevelText = muted ? "Muted" : $"{Math.Round(level * 100)}%",
+        Tone = muted ? HudTone.Neutral : HudTone.Good,
     };
 
     public static HudItem Microphone(string device, bool muted) => new()
@@ -158,7 +162,7 @@ internal static class HudItems
         Glyph = muted ? Glyphs.MicrophoneOff : Glyphs.Microphone,
         Title = device,
         Status = muted ? "Muted" : "On",
-        Tone = muted ? HudTone.Bad : HudTone.Good,
+        Tone = muted ? HudTone.Neutral : HudTone.Good,
     };
 
     public static HudItem LockKey(string key, bool on) => new()
@@ -203,14 +207,6 @@ internal static class HudItems
         Title = DisplayText.Clean(title, 80),
         Status = DisplayText.Clean(status, 80),
         Tone = tone,
-    };
-
-    public static HudItem Message(string title, string status) => new()
-    {
-        Glyph = Glyphs.Checkmark,
-        Title = title,
-        Status = status,
-        Tone = HudTone.Good,
     };
 
     public static Color ParseColor(string hex, Color fallback)

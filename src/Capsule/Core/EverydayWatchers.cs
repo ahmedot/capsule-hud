@@ -5,7 +5,6 @@ using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Windows.Threading;
 using Microsoft.Win32;
-using Capsule.Settings;
 using Connectivity = Windows.Networking.Connectivity;
 using Forms = System.Windows.Forms;
 
@@ -523,7 +522,7 @@ internal sealed class NetworkWatcher : IDisposable
         }
         catch
         {
-            // Ignore.
+            // Can't list the adapters: report no VPN.
         }
 
         return null;

@@ -29,7 +29,7 @@ internal static class Updater
     private const long MaxChecksumBytes = 64 * 1024;
     public const long MaxDownloadBytes = 400L * 1024 * 1024;
 
-    private static readonly Regex TagPattern = new(@"^v(\d{1,4})\.(\d{1,4})\.(\d{1,4})$", RegexOptions.CultureInvariant);
+    private static readonly Regex TagPattern = new(@"^v([0-9]{1,4})\.([0-9]{1,4})\.([0-9]{1,4})\z", RegexOptions.CultureInvariant);
     private static readonly Regex ChecksumLine = new(@"^([0-9A-Fa-f]{64})\s+\*?(\S+)$", RegexOptions.CultureInvariant);
     private static readonly HttpClient Http = CreateClient();
 

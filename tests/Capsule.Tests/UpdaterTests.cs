@@ -47,6 +47,8 @@ public class UpdaterTests
     [InlineData("v1.1.0-beta")]
     [InlineData("v1.1.0/../../evil")]
     [InlineData("v99999.0.0")]
+    [InlineData("v１.0.0")]   // full-width digit
+    [InlineData("v1.1.0\n")]      // trailing newline
     public void Odd_tags_are_ignored(string tag) =>
         Assert.Null(Updater.ParseRelease(Release(tag), Current, Asset));
 

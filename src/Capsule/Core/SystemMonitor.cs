@@ -22,7 +22,6 @@ internal sealed class SystemMonitor : IDisposable
     private readonly Func<AppSettings> _settings;
     private readonly Timer _timer;
     private readonly object _sampleGate = new();
-    private bool _disposed;
     private readonly SustainedAlert _cpu = new(TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(15));
     private readonly SustainedAlert _gpu = new(TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(30));
     private readonly SustainedAlert _gpuHot = new(TimeSpan.FromSeconds(10), TimeSpan.FromMinutes(15));
@@ -30,6 +29,7 @@ internal sealed class SystemMonitor : IDisposable
     private readonly SustainedAlert _memory = new(TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(20));
     private readonly Dictionary<string, DateTime> _diskWarned = new(StringComparer.OrdinalIgnoreCase);
     private readonly Pdh _pdh = new();
+    private bool _disposed;
     private long _idle, _kernel, _user;
     private DateTime _nextDiskCheck = DateTime.UtcNow.AddSeconds(30);
     private int _busy;
@@ -46,8 +46,6 @@ internal sealed class SystemMonitor : IDisposable
     public event Action<HealthAlert>? Alert;
 
     public void Start() => _timer.Change(Interval, Interval);
-
-    public void Pause() => _timer.Change(Timeout.Infinite, Timeout.Infinite);
 
     public void Dispose()
     {

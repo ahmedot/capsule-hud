@@ -19,8 +19,6 @@ internal static class WindowsAccent
 
     public static Color ForLight => Read(UIColorType.AccentDark1);
 
-    public static Color Base => Read(UIColorType.Accent);
-
     public static Color Light1 => Bright(Read(UIColorType.AccentLight1));
 
     public static Color Light3 => Bright(Read(UIColorType.AccentLight3));
@@ -29,7 +27,7 @@ internal static class WindowsAccent
 
     /// <summary>
     /// Keeps the hue but mixes in white until the colour is at least <see cref="MinBrightness"/> (relative
-    /// luminance), so dark accents such as deep purple still look lively on a dark background.
+    /// luminance), so dark accents such as deep purple stay readable on a dark background.
     /// </summary>
     internal static Color Bright(Color c)
     {

@@ -14,8 +14,8 @@
 
 1. Click **Download for Windows** above.
 2. Open **Capsule-Setup.exe** from your downloads.
-3. Click **Install**. That's it. Capsule starts straight away and pops up when you connect headphones, change the
-   volume and more.
+3. Click **Install**, then answer a few one-tap questions about your PC (or tap **Skip**). That's it. Capsule starts
+   straight away and pops up when you connect headphones, change the volume and more.
 
 > **Does Windows say "Windows protected your PC"?** Capsule is new and isn't code-signed yet, so Windows doesn't know
 > it. Click **More info**, then **Run anyway**. If your browser says the file isn't commonly downloaded, choose
@@ -92,6 +92,10 @@ through it.
   *HUD look* if you prefer the Windows one.
 - **No double pop-ups from keyboard apps.** Some keyboard apps, such as Logi Options+, show their own Caps Lock pop-up.
   Capsule hides that duplicate right after you press Caps Lock or Num Lock, and leaves the app's other alerts alone.
+  Still see one from another app? **Teach Capsule** (in *HUD look*): press the key, Capsule names the app, and on
+  your **Yes** it hides that app's pop-up too.
+- **One color rule.** Your accent color means on, connected or playing; soft gray means off, disconnected, muted or
+  paused; red is only for real warnings, such as heat, low battery, no internet or the camera and mic privacy alert.
 - **Updates itself, with your permission.** Once a day Capsule checks GitHub for a new version and asks before
   installing it.
 - **Light and dark settings window**, or the same as Windows.
@@ -121,7 +125,8 @@ Measured on a Windows 11 desktop at idle: about **20 MB of memory in use** and *
 ## Install
 
 <p align="center">
-  <img src="docs/images/installer.png" alt="The Capsule installer: one Install button and a Start with Windows switch" width="420">
+  <img src="docs/images/installer.png" alt="The Capsule installer: one Install button and a Start with Windows switch" width="380">
+  <img src="docs/images/installer-question.png" alt="A setup question: We found your Studio Headphones. When they connect, should your sound move to them by itself?" width="380">
 </p>
 
 Download **[Capsule-Setup.exe](https://github.com/ahmedot/capsule-hud/releases/latest/download/Capsule-Setup.exe)**, open it and click **Install**. The installer:
@@ -131,14 +136,19 @@ Download **[Capsule-Setup.exe](https://github.com/ahmedot/capsule-hud/releases/l
 - starts Capsule with Windows, unless you switch that off on the install screen.
 - starts Capsule straight away, with a small "Capsule is ready" pop-up so you can see it working.
 
-There's nothing to set up. To change anything later, open **Capsule** from the Start menu, or click its icon near the
-clock.
+While the files are copied, the installer asks a few one-tap questions, picked by a quick look at your PC: where the
+pop-up should appear, whether sound should follow the headphones it found, and, only if they apply, about games,
+keyboard languages, your keyboard app and your laptop battery. Every question has a recommended answer, and **Skip**
+uses the recommended answers for the rest. The look at your PC happens on your PC only and nothing is saved except
+your answers. Updates and reinstalls keep your settings and don't ask again.
+
+To change anything later, open **Capsule** from the Start menu, or click its icon near the clock.
 
 - **Rather not install?** Choose **Try it without installing** on the install screen. To remove a copy like that
   later, turn off *Start with Windows* in its settings, quit it from its icon near the clock, then delete the file and
   the folders `%APPDATA%\Capsule` and `%LOCALAPPDATA%\Capsule`.
 - **Setting up several PCs?** `Capsule-Setup.exe --install` installs silently for the Windows account that runs it and
-  starts Capsule.
+  starts Capsule. Run it as that user, not as administrator or SYSTEM.
 - **Arm PC?** Download `Capsule-win-arm64.exe` from the [releases page](https://github.com/ahmedot/capsule-hud/releases/latest) instead. It's the native version for
   Arm PCs and installs the same way. (Capsule-Setup.exe also runs on Windows 11 Arm PCs, through Windows' x64
   emulation.)
@@ -163,8 +173,9 @@ pop-up, that comes back as Capsule closes.
 - The installer only touches your own user account: the program folder, a Start menu shortcut, the Settings › Apps
   entry and, if switched on, the start-with-Windows entry.
 - Releases are built by GitHub Actions from the tagged source, with SHA-256 sums and signed build provenance.
-  Before the first release, the code went through a security audit with Cloudflare's open-source
-  [security-audit skill](https://github.com/cloudflare/security-audit-skill), and every lead it raised was fixed.
+  The code has been audited twice with Cloudflare's open-source
+  [security-audit skill](https://github.com/cloudflare/security-audit-skill), most recently before 1.0.0, and every
+  lead raised was fixed. [SECURITY.md](SECURITY.md#security-review) says what each audit covered.
 
 See [SECURITY.md](SECURITY.md) for details and how to report a vulnerability.
 
@@ -174,10 +185,11 @@ See [SECURITY.md](SECURITY.md) for details and how to report a vulnerability.
 the **^** arrow; drag Capsule's icon out to keep it in sight. Opening Capsule from the Start menu also opens its
 settings.
 
-**I see two Caps Lock pop-ups.** Some keyboard apps show their own Caps Lock pop-up. Capsule hides it for Logi
-Options+ (*HUD look › Hide duplicate pop-ups from keyboard apps*, on by default), though it can flash for a split
-second. For the cleanest look, also turn off Caps Lock / Num Lock notifications in that app; Capsule's settings show
-an **Open Logi Options+** button when it's installed. For other keyboard apps, turn the notification off in the app.
+**I see two Caps Lock pop-ups.** Some keyboard apps show their own Caps Lock pop-up. Capsule hides the one from Logi
+Options+ automatically (*HUD look › Hide duplicate pop-ups from keyboard apps*, on by default), though it can flash for a split
+second. For any other app, open *HUD look* and click **Teach Capsule**, press the key that shows the extra pop-up, and
+confirm the app Capsule names. For the cleanest look you can also turn the notification off in the app itself;
+Capsule's settings show an **Open Logi Options+** button when Logi Options+ is installed.
 
 **Does it work on Windows 10?** Capsule is made and tested for Windows 11. It may run on Windows 10 version 2004 or
 newer, but that isn't tested, including the option that hides the Windows volume pop-up.

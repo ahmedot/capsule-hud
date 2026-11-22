@@ -1,5 +1,4 @@
 using System.Windows.Interop;
-using System.Windows.Media;
 using System.Windows.Threading;
 using Capsule.Interop;
 using Capsule.Settings;
@@ -95,19 +94,10 @@ internal sealed class HudPresenter
     private void CloseThenNext()
     {
         if (_closing) return;
-        _hold.Stop();
-        _closing = true;
-        var generation = ++_generation;
-        _window.PlayOut(() =>
-        {
-            if (generation != _generation) return;
-            _closing = false;
-            _current = null;
-            if (_queue.Count > 0) Open(_queue.Dequeue());
-            else HideWindow();
-        });
+        Close();
     }
 
+    // Closes the pill, then opens the next item in line or hides the window.
     private void Close()
     {
         _hold.Stop();

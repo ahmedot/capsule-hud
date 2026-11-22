@@ -1,13 +1,15 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
-using Capsule.Interop;
-using Capsule.Core;
-using Capsule.Settings;
+using System.Windows.Threading;
 using Microsoft.Win32;
+using Capsule.Core;
+using Capsule.Interop;
+using Capsule.Settings;
 
 namespace Capsule.Hud;
 
@@ -17,7 +19,7 @@ namespace Capsule.Hud;
 /// </summary>
 public partial class HudWindow : Window
 {
-    // Unhurried timings with soft easing: the icon settles, then the capsule glides open.
+    // Kept slow on purpose, with soft easing: the icon settles before the capsule opens.
     public const double IconFadeMs = 240;
     public const double IconPopMs = 460;
     public const double ExpandDelayMs = 330;
@@ -26,7 +28,7 @@ public partial class HudWindow : Window
     public const double VanishDelayMs = 450;
     public const double VanishMs = 300;
     private const double DetailsSlide = 10;
-    private const double MinHeight46 = 46;
+    private const double MinPillSize = 46;
     private const double IconCenter = 8 + 16; // content margin + half the icon bubble
 
     /// <summary>0 = closed to the round icon, 1 = fully open pill.</summary>
@@ -36,8 +38,8 @@ public partial class HudWindow : Window
 
     private readonly RectangleGeometry _clip = new();
     private HudItem? _item;
-    private double _fullWidth = MinHeight46;
-    private double _height = MinHeight46;
+    private double _fullWidth = MinPillSize;
+    private double _height = MinPillSize;
     private double _iconShift;
 
     public HudWindow()
@@ -77,7 +79,7 @@ public partial class HudWindow : Window
         var expand = Make(0, 1, ExpandMs, ExpandDelayMs, OpenEase());
         expand.Completed += (_, _) =>
         {
-            // Hold still as one GPU-cached bitmap: fading or moving it costs the CPU nothing.
+            // Hold still as one GPU-cached bitmap, so fading or moving it costs almost no CPU.
             if (HasGpu) Stage.CacheMode = new BitmapCache { RenderAtScale = VisualTreeHelper.GetDpi(this).DpiScaleX * SizeScale.ScaleX };
             done?.Invoke();
         };
@@ -162,11 +164,11 @@ public partial class HudWindow : Window
     public void Relayout()
     {
         // Let new text and battery bindings settle first, so the measured width includes them.
-        Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.DataBind);
+        Dispatcher.Invoke(() => { }, DispatcherPriority.DataBind);
         PillContent.InvalidateMeasure();
         PillContent.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        _fullWidth = Math.Ceiling(Math.Max(MinHeight46, PillContent.DesiredSize.Width));
-        _height = Math.Ceiling(Math.Max(MinHeight46, PillContent.DesiredSize.Height));
+        _fullWidth = Math.Ceiling(Math.Max(MinPillSize, PillContent.DesiredSize.Width));
+        _height = Math.Ceiling(Math.Max(MinPillSize, PillContent.DesiredSize.Height));
         Stage.Width = ContentHost.Width = _fullWidth;
         Stage.Height = ContentHost.Height = _height;
         _iconShift = _fullWidth / 2 - IconCenter;
@@ -186,7 +188,7 @@ public partial class HudWindow : Window
         // The clip stays centred on the stage while the content slides underneath it.
         _clip.Rect = new Rect((_fullWidth - width) / 2 - shift, 0, width, _height);
         _clip.RadiusX = _clip.RadiusY = _height / 2;
-        // Text arrives last, sliding in a few pixels as it fades: it reads as one calm motion.
+        // Text comes in last, sliding a few pixels as it fades in.
         var text = Math.Clamp((e - 0.4) / 0.55, 0, 1);
         Details.Opacity = text;
         DetailsShift.X = DetailsSlide * (1 - text);
@@ -254,7 +256,7 @@ public partial class HudWindow : Window
         {
             Stage.CacheMode = null;
             Relayout();
-        }, System.Windows.Threading.DispatcherPriority.Loaded);
+        }, DispatcherPriority.Loaded);
     }
 
     private void UpdateTone()
@@ -266,7 +268,7 @@ public partial class HudWindow : Window
             _ => ("HudAccent", "HudText", "HudAccentSoft"),
         };
         StatusDot.SetResourceReference(Shape.FillProperty, dot);
-        IconText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, icon);
+        IconText.SetResourceReference(TextBlock.ForegroundProperty, icon);
         IconBubble.SetResourceReference(Shape.FillProperty, bubble);
     }
 

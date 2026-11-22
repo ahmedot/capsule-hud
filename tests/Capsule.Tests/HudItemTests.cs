@@ -14,8 +14,18 @@ public class HudItemTests
         Assert.Equal("Connected", on.Status);
         Assert.Equal("80%", on.BatteryText);
         Assert.Equal("Disconnected", off.Status);
-        Assert.True(off.IsBad);
+        Assert.True(off.IsNeutral); // disconnecting is normal, not an error
         Assert.False(off.HasBattery);
+    }
+
+    [Fact]
+    public void Off_states_are_grey_and_only_warnings_are_red()
+    {
+        Assert.True(HudItems.Microphone("Mic", muted: true).IsNeutral);
+        Assert.True(HudItems.Volume("Speakers", 0.5f, muted: true).IsNeutral);
+        Assert.False(HudItems.Volume("Speakers", 0.5f, muted: false).IsNeutral);
+        Assert.True(HudItems.LockKey("Caps Lock", on: false).IsNeutral);
+        Assert.True(HudItems.Info(Glyphs.Warning, "GPU 90 °C", "Running hot", HudTone.Bad).IsBad);
     }
 
     [Theory]

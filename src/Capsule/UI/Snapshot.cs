@@ -3,7 +3,6 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using Capsule.Audio;
 using Capsule.Core;
 using Capsule.Hud;
 using Capsule.Interop;
@@ -72,12 +71,34 @@ internal static class Snapshot
         {
             step++;
             if (step == 2) CaptureVisual(installer, Path.Combine(folder, "installer.png"));
-            if (step == 2) installer.ShowDoneForSnapshot();
-            if (step < 3) return;
+            if (step == 2) installer.ShowQuestionForSnapshot();
+            if (step == 3) CaptureVisual(installer, Path.Combine(folder, "installer-question.png"));
+            if (step == 3) installer.ShowDoneForSnapshot();
+            if (step < 4) return;
             CaptureVisual(installer, Path.Combine(folder, "installer-done.png"));
             timer.Stop();
             installer.Close();
             next();
+        };
+        timer.Start();
+    }
+
+    // The "Teach Capsule" window at its "found it" step, with a sample app.
+    private static void RenderTeach(App app, string folder)
+    {
+        var teach = new TeachWindow(app) { WindowStartupLocation = WindowStartupLocation.Manual, Left = 60, Top = 60 };
+        teach.Show();
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
+        var step = 0;
+        timer.Tick += (_, _) =>
+        {
+            step++;
+            if (step == 1) teach.ShowFoundForSnapshot();
+            if (step < 2) return;
+            CaptureWindow(teach, Path.Combine(folder, "teach.png"));
+            timer.Stop();
+            teach.Close();
+            app.Shutdown();
         };
         timer.Start();
     }
@@ -116,7 +137,7 @@ internal static class Snapshot
 
                 timer.Stop();
                 window.Close();
-                app.Shutdown();
+                RenderTeach(app, folder);
             };
             timer.Start();
         }

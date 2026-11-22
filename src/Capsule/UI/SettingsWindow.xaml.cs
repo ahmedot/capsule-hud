@@ -6,7 +6,6 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Capsule.Core;
 using Capsule.Hud;
-using Capsule.Interop;
 using Capsule.Settings;
 
 namespace Capsule.UI;
@@ -20,6 +19,7 @@ public partial class SettingsWindow : Window
     private bool _loading;
     private string? _pickedAccent;
     private string? _renameSignature;
+    private string? _keyboardAppPath;
     private HudWindow? _previewWindow;
 
     internal SettingsWindow(App app)
@@ -84,6 +84,7 @@ public partial class SettingsWindow : Window
             HideOsdToggle.IsChecked = s.HideWindowsOsd;
             HideDuplicatesToggle.IsChecked = s.HideDuplicatePopups;
             ShowKeyboardAppTip();
+            BuildTaughtList();
             BatteryToggle.IsChecked = s.HudBattery;
             foreach (var spot in PositionSpots()) spot.IsChecked = (string)spot.Tag == s.HudPosition.ToString();
             Select(ScreenCombo, s.HudScreen.ToString());
@@ -373,7 +374,41 @@ public partial class SettingsWindow : Window
             ? Visibility.Visible
             : Visibility.Collapsed;
 
-    private string? _keyboardAppPath;
+    private void Teach_Click(object sender, RoutedEventArgs e)
+    {
+        new TeachWindow(_app) { Owner = this }.ShowDialog();
+        // Teaching turns the switch on, so show it as it is now.
+        _loading = true;
+        HideDuplicatesToggle.IsChecked = _app.Settings.HideDuplicatePopups;
+        _loading = false;
+        BuildTaughtList();
+    }
+
+    // One row per taught app, each with a Remove button to undo it.
+    private void BuildTaughtList()
+    {
+        TaughtPanel.Children.Clear();
+        foreach (var taught in _app.Settings.TaughtPopups.ToList())
+        {
+            var remove = new Button { Content = "Remove", Padding = new Thickness(14, 6, 14, 6) };
+            System.Windows.Automation.AutomationProperties.SetName(remove, $"Remove {taught.App}");
+            remove.Click += (_, _) =>
+            {
+                _app.UpdateSettings(s => s.TaughtPopups.RemoveAll(t => t.Matches(taught.ExePath, taught.WindowClass)));
+                BuildTaughtList();
+            };
+            TaughtPanel.Children.Add(new Border { Style = (Style)FindResource("Divider") });
+            TaughtPanel.Children.Add(new SettingRow
+            {
+                Title = _app.Settings.HideDuplicatePopups ? $"Hiding pop-ups from {taught.App}" : $"{taught.App} (paused)",
+                Description = _app.Settings.HideDuplicatePopups
+                    ? Path.GetFileName(taught.ExePath)
+                    : "Turn on the switch above to hide its pop-up again",
+                Margin = new Thickness(40, 0, 0, 0),
+                Content = remove,
+            });
+        }
+    }
 
     // A keyboard app that shows its own lock-key pop-up: say so, and offer to open it to switch that off.
     private void ShowKeyboardAppTip()
@@ -389,10 +424,11 @@ public partial class SettingsWindow : Window
 
     private void OpenKeyboardApp_Click(object sender, RoutedEventArgs e)
     {
-        if (_keyboardAppPath is null || !File.Exists(_keyboardAppPath)) return;
+        // Checked again at click time: only an installed program under Program Files is ever started.
+        if (_keyboardAppPath is null || !File.Exists(_keyboardAppPath) || !DuplicatePopupHider.IsInstalledLocation(_keyboardAppPath)) return;
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_keyboardAppPath) { UseShellExecute = true })?.Dispose();
+            Process.Start(new ProcessStartInfo(_keyboardAppPath) { UseShellExecute = true })?.Dispose();
         }
         catch (Exception ex)
         {
@@ -438,7 +474,7 @@ public partial class SettingsWindow : Window
         UpdateLook();
     }
 
-    private void Toggle(System.Windows.Controls.Primitives.ToggleButton box, Action<AppSettings, bool> apply)
+    private void Toggle(ToggleButton box, Action<AppSettings, bool> apply)
     {
         box.Checked += (_, _) => { if (!_loading) _app.UpdateSettings(s => apply(s, true)); };
         box.Unchecked += (_, _) => { if (!_loading) _app.UpdateSettings(s => apply(s, false)); };

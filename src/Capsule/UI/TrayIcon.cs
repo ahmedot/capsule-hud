@@ -2,7 +2,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
-using Capsule.Audio;
 using Capsule.Core;
 using Capsule.Interop;
 using Forms = System.Windows.Forms;
@@ -85,8 +84,8 @@ internal sealed class TrayIcon : IDisposable
     {
         _menu.Items.Clear();
         var settings = _app.Settings;
-        var outputs = _app.Audio.GetEndpoints(Interop.EDataFlow.Render);
-        var current = _app.Audio.GetDefaultId(Interop.EDataFlow.Render, Interop.ERole.Multimedia);
+        var outputs = _app.Audio.GetEndpoints(EDataFlow.Render);
+        var current = _app.Audio.GetDefaultId(EDataFlow.Render, ERole.Multimedia);
 
         var output = new MenuItem { Header = "Sound output" };
         foreach (var endpoint in outputs.OrderBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase))
@@ -94,7 +93,7 @@ internal sealed class TrayIcon : IDisposable
             var item = new MenuItem
             {
                 Header = DisplayText.ForAccessText(
-                    _app.Settings.DeviceNames.ContainsKey(endpoint.ShortName) ? _app.Shown(endpoint.ShortName) : endpoint.Name),
+                    settings.DeviceNames.ContainsKey(endpoint.ShortName) ? _app.Shown(endpoint.ShortName) : endpoint.Name),
                 IsCheckable = true,
                 IsChecked = endpoint.Id == current,
             };

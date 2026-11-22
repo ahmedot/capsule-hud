@@ -295,6 +295,12 @@
                   <Button x:Name="OpenKeyboardAppButton" Click="OpenKeyboardApp_Click" Padding="14,6" />
                 </ui:SettingRow>
               </StackPanel>
+              <Border Style="{StaticResource Divider}" />
+              <ui:SettingRow Glyph="&#xE82F;" Title="Still see a second pop-up?"
+                             Description="Teach Capsule which app shows it, and Capsule hides it from then on.">
+                <Button x:Name="TeachButton" Content="Teach Capsule" Click="Teach_Click" Padding="14,6" />
+              </ui:SettingRow>
+              <StackPanel x:Name="TaughtPanel" />
             </StackPanel>
           </Border>
         </StackPanel>

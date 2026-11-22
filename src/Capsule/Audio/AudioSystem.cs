@@ -4,7 +4,7 @@ using Capsule.Interop;
 
 namespace Capsule.Audio;
 
-/// <summary>Reads Windows audio endpoints and changes the default device. Use from the UI thread.</summary>
+/// <summary>Reads Windows audio endpoints and changes the default device.</summary>
 internal sealed class AudioSystem : IDisposable
 {
     private static readonly Guid AudioEndpointVolumeId = typeof(IAudioEndpointVolume).GUID;
