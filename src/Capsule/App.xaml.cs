@@ -199,6 +199,7 @@ public partial class App : Application
         ApplyAppTheme();
         Log.Info($"Capsule {Version} starting{(atSignIn ? " at sign-in" : "")}{(updated ? " after an update" : "")}{(installed ? " after installing" : "")}");
         Log.Info(HudWindow.HasGpu ? "HUD draws on the GPU" : "No GPU acceleration available; HUD draws in software");
+        Log.Info(AutoStart.IsEnabled() ? "Start with Windows is on" : "Start with Windows is off");
         if (updated || installed) Updater.CleanUpAfterUpdate();
         Installer.RefreshAppsEntry();
 

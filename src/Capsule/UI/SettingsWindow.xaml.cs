@@ -99,7 +99,7 @@ public partial class SettingsWindow : Window
             BuildAccentSwatches(s.HudAccent);
 
             IgnoreVirtualToggle.IsChecked = s.IgnoreVirtualControllers;
-            StartupToggle.IsChecked = AutoStart.IsEnabled();
+            StartupToggle.IsChecked = StartsWithWindows;
 
             LogRow.Description = _app.DemoMode ? @"%LOCALAPPDATA%\Capsule" : Log.Folder;
             AboutRow.Description = $"Capsule {App.Version}. Open source (MIT). No telemetry, no admin rights. The only connections it makes are to GitHub, to check for and download its own updates.";
@@ -548,6 +548,8 @@ public partial class SettingsWindow : Window
 
         SetChip(AutoDot, AutoChipText, s.AutoSwitch, "Auto-switching on", "Auto-switching off");
         SetChip(HudDot, HudChipText, s.HudEnabled, "HUD on", "HUD off");
+        var startsWithWindows = StartsWithWindows;
+        SetChip(StartupDot, StartupChipText, startsWithWindows, "Start with Windows on", "Start with Windows off");
         EfficiencyChip.Visibility = Efficiency.IsOn ? Visibility.Visible : Visibility.Collapsed;
 
         SoundSummary.Text = s.AutoSwitch
@@ -562,8 +564,11 @@ public partial class SettingsWindow : Window
         }.Count(on => on);
         AlertsSummary.Text = $"{shown} of 15 pop-ups are on";
         GeneralSummary.Text = (s.AutoUpdateCheck ? "Checks for updates daily" : "Update checks are off")
-            + (AutoStart.IsEnabled() ? " · Starts with Windows" : "");
+            + (startsWithWindows ? " · Starts with Windows" : "");
     }
+
+    // The screenshot tool shows a normal install rather than reading this PC's start-up entry.
+    private bool StartsWithWindows => _app.DemoMode || AutoStart.IsEnabled();
 
     private static void SetChip(System.Windows.Shapes.Ellipse dot, TextBlock text, bool on, string onText, string offText)
     {

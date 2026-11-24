@@ -45,7 +45,8 @@ Capsule is designed to have as little power as possible:
   the file when you opened it. Uninstalling removes the program folder, the shortcut, the Apps entry, the start-up
   entry, the settings and the log.
 - **Start with Windows** uses your per-user `Run` registry entry, which you can turn off in Capsule's settings
-  (*General › Start with Windows*).
+  (*General › Start with Windows*). Capsule also respects Windows' own *Startup apps* switch; turning the setting on
+  in Capsule clears a switch-off for Capsule's entry there, and nothing else.
 - **"Hide duplicate pop-ups from keyboard apps"** only acts for 1.5 seconds right after Capsule shows its own pop-up
   (Caps Lock or Num Lock; volume, mic and brightness only for apps you taught). It hides small windows (600 px or less
   at 100% scaling) of a known keyboard app's process, checked by the process's file name and the window's class, or

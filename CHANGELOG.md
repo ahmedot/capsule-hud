@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1
+
+- **Home page shows whether Capsule starts with Windows.** A new chip says *Start with Windows on* or *Start with Windows off*, so it's easy to notice when it's off, including when it was switched off in Task Manager.
+- **Turning on *General › Start with Windows* now always works.** It also undoes a switch-off made in Task Manager or in Windows Settings › Apps › Startup.
+- Capsule's log now notes, each time it starts, whether it is set to start with Windows, to help track down start-up problems.
+
 ## 1.0.0
 
 First release.
