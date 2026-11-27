@@ -6,7 +6,8 @@ using Windows.Storage.Streams;
 
 namespace Capsule.Core;
 
-internal sealed record MediaInfo(string Title, string Artist, bool Playing, ImageSource? Art);
+/// <summary>What is playing. For a YouTube video only <see cref="Playing"/> is filled in: the pill shows no title.</summary>
+internal sealed record MediaInfo(string Title, string Artist, bool Playing, ImageSource? Art, bool YouTube = false);
 
 /// <summary>Reports play/pause and track changes from the app Windows shows in its media controls.</summary>
 internal sealed class MediaWatcher : IDisposable
@@ -14,12 +15,15 @@ internal sealed class MediaWatcher : IDisposable
     private const long MaxArtBytes = 2 * 1024 * 1024;
     private const int MaxArtSide = 3000;
     private static readonly TimeSpan StartupQuiet = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan TabCatchUp = TimeSpan.FromMilliseconds(700);
 
     private readonly Dispatcher _ui;
     private readonly Func<bool> _wanted;
     private GlobalSystemMediaTransportControlsSessionManager? _manager;
     private GlobalSystemMediaTransportControlsSession? _session;
     private string _lastKey = "";
+    private string? _youTubeTitle; // the title last recognized as a YouTube video in this session
+    private int _refreshes;
     private DateTime _quietUntil;
     private bool _disposed;
 
@@ -70,6 +74,7 @@ internal sealed class MediaWatcher : IDisposable
         }
 
         _session = session;
+        _youTubeTitle = null;
         if (session is null) return;
 
         session.MediaPropertiesChanged += OnPropertiesChanged;
@@ -93,27 +98,62 @@ internal sealed class MediaWatcher : IDisposable
             var playing = status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
             if (!playing && status != GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused) return;
 
+            // Refreshes overlap (the YouTube check can wait); only the newest may announce, so an older one can't
+            // show a play state that has already changed.
+            var refresh = ++_refreshes;
+            bool Stale() => refresh != _refreshes || !ReferenceEquals(session, _session);
+
             var properties = await session.TryGetMediaPropertiesAsync();
             // Any app (even a web page) can set these: keep them to one short clean line.
             var title = DisplayText.Clean(properties?.Title, 150);
-            if (title.Length == 0 || !ReferenceEquals(session, _session)) return;
+            if (title.Length == 0 || Stale()) return;
             var artist = DisplayText.Clean(properties!.Artist, 100);
 
-            // Apps send several updates per change; only a new title or a play/pause flip is news.
-            var key = $"{title}\u0001{artist}\u0001{playing}";
+            // A YouTube video shows as "YouTube" and Playing or Paused, without the video's title or picture.
+            var youTube = _wanted() && await IsYouTubeAsync(session, properties.Title?.Trim() ?? "");
+            if (Stale()) return;
+
+            // Apps send several updates per change; only a new title or a play/pause flip is news. The YouTube pill
+            // shows no title, so there only the flip is.
+            var key = youTube ? $"\u0002YouTube\u0001{playing}" : $"{title}\u0001{artist}\u0001{playing}";
             if (key == _lastKey) return;
             _lastKey = key;
             if (!announce || DateTime.UtcNow < _quietUntil) return;
 
             if (!_wanted()) return; // media HUD is off: don't even load the picture
+            if (youTube)
+            {
+                Changed?.Invoke(new MediaInfo("YouTube", "", playing, null, YouTube: true));
+                return;
+            }
+
             var art = await LoadArtAsync(properties.Thumbnail);
-            if (!ReferenceEquals(session, _session)) return;
+            if (Stale()) return;
             Changed?.Invoke(new MediaInfo(title, artist, playing, art));
         }
         catch (Exception ex)
         {
             Log.Error("Reading the media info failed", ex);
         }
+    }
+
+    private async Task<bool> IsYouTubeAsync(GlobalSystemMediaTransportControlsSession session, string title)
+    {
+        if (title.Length == 0) return false;
+        if (title == _youTubeTitle) return true; // the same video, even once its tab is no longer in front
+
+        var tab = YouTube.Find(title);
+        if (tab == YouTubeTab.OtherTitle)
+        {
+            // When the next video starts, its tab title can follow the media info a moment later.
+            await Task.Delay(TabCatchUp);
+            if (!ReferenceEquals(session, _session)) return false;
+            tab = YouTube.Find(title);
+        }
+
+        if (tab != YouTubeTab.ThisTitle) return false;
+        _youTubeTitle = title;
+        return true;
     }
 
     private static async Task<ImageSource?> LoadArtAsync(IRandomAccessStreamReference? thumbnail)

@@ -193,6 +193,16 @@ internal static class HudItems
         Art = art,
     };
 
+    /// <summary>A YouTube video: just "YouTube" and Playing or Paused, never the video's title or picture.</summary>
+    public static HudItem YouTube(bool playing) => new()
+    {
+        ReplaceKey = "media",
+        Glyph = Glyphs.Video,
+        Title = "YouTube",
+        Status = playing ? "Playing" : "Paused",
+        Tone = playing ? HudTone.Good : HudTone.Neutral,
+    };
+
     public static string MediaStatus(string artist, bool playing)
     {
         var state = playing ? "Playing" : "Paused";

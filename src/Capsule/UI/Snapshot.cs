@@ -37,6 +37,8 @@ internal static class Snapshot
             RenderHud(folder, "hud-mic", dark, HudItems.Microphone("USB Microphone", true));
             RenderHud(folder, "hud-light", light, HudItems.Device(Glyphs.Headphones, "Studio Headphones", true, 80));
             RenderHud(folder, "hud-media", dark, HudItems.Media("Midnight Drive", "Neon Avenue", true, SampleArt()));
+            RenderHud(folder, "hud-youtube", dark, HudItems.YouTube(true));
+            RenderHud(folder, "hud-youtube-paused", dark, HudItems.YouTube(false));
             RenderHud(folder, "hud-brightness", new AppSettings { HudAccent = "#F5C04A" }, HudItems.Brightness(70));
             RenderHud(folder, "hud-capslock", dark, HudItems.LockKey("Caps Lock", true));
             RenderHud(folder, "hud-language", dark, HudItems.Info(Glyphs.Globe, "العربية", "AR", HudTone.Good));

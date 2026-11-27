@@ -22,8 +22,10 @@ internal sealed class SystemMonitor : IDisposable
     private readonly Func<AppSettings> _settings;
     private readonly Timer _timer;
     private readonly object _sampleGate = new();
-    private readonly SustainedAlert _cpu = new(TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(15));
-    private readonly SustainedAlert _gpu = new(TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(30));
+
+    // Busy CPU or GPU: the average over 30 s must reach the limit. GPU is read every 15 s, CPU every 5 s.
+    private readonly AverageAlert _cpu = new(TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(15), TimeSpan.FromSeconds(20));
+    private readonly AverageAlert _gpu = new(TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(30), TimeSpan.FromSeconds(45));
     private readonly SustainedAlert _gpuHot = new(TimeSpan.FromSeconds(10), TimeSpan.FromMinutes(15));
     private readonly SustainedAlert _throttle = new(TimeSpan.FromSeconds(10), TimeSpan.FromMinutes(15));
     private readonly SustainedAlert _memory = new(TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(20));
@@ -34,7 +36,6 @@ internal sealed class SystemMonitor : IDisposable
     private DateTime _nextDiskCheck = DateTime.UtcNow.AddSeconds(30);
     private int _busy;
     private int _ticks;
-    private (double Percent, int TopPid)? _lastGpu;
 
     public SystemMonitor(Dispatcher ui, Func<AppSettings> settings)
     {
@@ -69,23 +70,28 @@ internal sealed class SystemMonitor : IDisposable
             if (!s.HudEnabled || !(s.HudCpuGpu || s.HudHeat || s.HudMemoryDisk)) return;
 
             // Only measure what an alert that is switched on needs.
-            var cpu = s.HudCpuGpu ? CpuPercent() : 0;
-            // The GPU counter lists hundreds of engines, so read it only every third sample (15 s)
-            // and only when GPU alerts are on. That still catches "busy for 30 s".
-            if (s.HudCpuGpu && _ticks++ % 3 == 0) _lastGpu = _pdh.GpuLoad();
-            var gpu = s.HudCpuGpu ? _lastGpu : null;
             var gpuTemp = s.HudHeat ? GpuTemperature.Max() : null;
             var limit = s.HudHeat ? _pdh.ThermalLimitPercent() : null;
             var memory = s.HudMemoryDisk ? MemoryPercent() : null;
 
-            if (s.HudCpuGpu && _cpu.Update(cpu >= s.CpuAlertPercent, now))
+            if (s.HudCpuGpu)
             {
-                Raise(new HealthAlert(HealthKind.CpuLoad, $"CPU {cpu:0}%", TopProcess.ByCpu() ?? "Working hard"));
-            }
+                // The same "CPU utility" figure Task Manager shows; the plain processor time if that counter is missing.
+                var cpu = _pdh.CpuUtility() ?? CpuPercent();
+                if (_cpu.Update(cpu, s.CpuAlertPercent, now) is { } average)
+                {
+                    var app = Busiest.Describe(Busiest.App(ProcessList.CpuUse(TimeSpan.FromSeconds(1))), "Several apps are busy");
+                    Raise(new HealthAlert(HealthKind.CpuLoad, $"CPU {average:0}%", app));
+                }
 
-            if (s.HudCpuGpu && gpu is { } g && _gpu.Update(g.Percent >= s.GpuAlertPercent, now))
-            {
-                Raise(new HealthAlert(HealthKind.GpuLoad, $"GPU {g.Percent:0}%", TopProcess.NameOf(g.TopPid) ?? "Working hard"));
+                // The GPU counters list many engines, so they're read every third sample (15 s). That still catches
+                // "busy for 30 s".
+                if (_ticks++ % 3 == 0 && _pdh.GpuLoad() is { } gpu && _gpu.Update(gpu.Percent, s.GpuAlertPercent, now) is { } gpuAverage)
+                {
+                    var names = ProcessList.Names();
+                    var users = gpu.Users.Select(u => (names.GetValueOrDefault(u.Pid, ""), u.Value));
+                    Raise(new HealthAlert(HealthKind.GpuLoad, $"GPU {gpuAverage:0}%", Busiest.Describe(Busiest.App(users), "Several apps are busy")));
+                }
             }
 
             if (s.HudHeat && gpuTemp is { } t && _gpuHot.Update(t >= s.GpuTempAlertC, now))
@@ -100,7 +106,7 @@ internal sealed class SystemMonitor : IDisposable
 
             if (s.HudMemoryDisk && memory is { } m && _memory.Update(m >= s.MemoryAlertPercent, now))
             {
-                Raise(new HealthAlert(HealthKind.Memory, $"Memory {m}% used", TopProcess.ByMemory() ?? "Close some apps"));
+                Raise(new HealthAlert(HealthKind.Memory, $"Memory {m}% used", Busiest.Describe(Busiest.App(ProcessList.MemoryUse()), "Close some apps")));
             }
 
             if (s.HudMemoryDisk && now >= _nextDiskCheck)
@@ -154,6 +160,7 @@ internal sealed class SystemMonitor : IDisposable
         _ui.BeginInvoke(() => Alert?.Invoke(alert));
     }
 
+    // Processor time from GetSystemTimes, used only when the "CPU utility" counter can't be read.
     private double CpuPercent()
     {
         if (!GetSystemTimes(out var idle, out var kernel, out var user)) return 0;
@@ -186,83 +193,142 @@ internal sealed class SystemMonitor : IDisposable
     private static extern bool GetSystemTimes(out long idle, out long kernel, out long user);
 }
 
-/// <summary>Finds which program is using the most CPU, memory or GPU (best effort; protected processes are skipped).</summary>
-internal static class TopProcess
+/// <summary>
+/// Every running process with its name, CPU time and memory, read in one call from Windows' own process list (what
+/// Task Manager uses). Unlike opening each process, this also covers protected and elevated programs, so a busy game
+/// with anti-cheat or a system service is never skipped and the blame put on whatever comes next.
+/// </summary>
+internal static class ProcessList
 {
-    public static string? ByCpu()
-    {
-        var first = Snapshot();
-        Thread.Sleep(1000);
-        var second = Snapshot();
-        var best = second
-            .Where(p => first.ContainsKey(p.Key))
-            .Select(p => (p.Value.Name, Delta: p.Value.Cpu - first[p.Key].Cpu))
-            .OrderByDescending(p => p.Delta)
-            .FirstOrDefault();
-        return best.Name is null ? null : Friendly(best.Name);
-    }
+    private const int SystemProcessInformation = 5;
+    private const int InfoLengthMismatch = unchecked((int)0xC0000004);
+    private const int MaxBufferBytes = 64 * 1024 * 1024;
 
-    public static string? ByMemory()
-    {
-        string? name = null;
-        long most = 0;
-        foreach (var process in Process.GetProcesses())
-        {
-            using (process)
-            {
-                try
-                {
-                    if (process.Id <= 4 || process.WorkingSet64 <= most) continue;
-                    most = process.WorkingSet64;
-                    name = process.ProcessName;
-                }
-                catch
-                {
-                    // Gone or protected.
-                }
-            }
-        }
+    public readonly record struct Entry(int Pid, string Name, long CpuTime, long WorkingSet);
 
-        return name is null ? null : Friendly(name);
-    }
-
-    public static string? NameOf(int pid)
+    /// <summary>CPU time each process used during <paramref name="window"/>, by program name.</summary>
+    public static List<(string Name, double Amount)> CpuUse(TimeSpan window)
     {
-        if (pid <= 4) return null;
-        try
+        var before = Snapshot().ToDictionary(e => e.Pid);
+        Thread.Sleep(window);
+        var result = new List<(string, double)>();
+        foreach (var after in Snapshot())
         {
-            using var process = Process.GetProcessById(pid);
-            return Friendly(process.ProcessName);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static Dictionary<int, (string Name, TimeSpan Cpu)> Snapshot()
-    {
-        var result = new Dictionary<int, (string, TimeSpan)>();
-        foreach (var process in Process.GetProcesses())
-        {
-            using (process)
-            {
-                try
-                {
-                    if (process.Id <= 4) continue;
-                    result[process.Id] = (process.ProcessName, process.TotalProcessorTime);
-                }
-                catch
-                {
-                    // Access denied for protected processes.
-                }
-            }
+            // The same pid with a different name is a new process that reused the number.
+            if (after.Pid == 0 || !before.TryGetValue(after.Pid, out var earlier) || earlier.Name != after.Name) continue;
+            result.Add((after.Name, after.CpuTime - earlier.CpuTime));
         }
 
         return result;
     }
 
-    private static string Friendly(string processName) => DisplayText.Clean(processName, 40) + ".exe";
+    /// <summary>Memory in use by each process, by program name.</summary>
+    // Windows' own memory bookkeeping, not apps you could close; its memory grows exactly when memory runs low.
+    private static readonly HashSet<string> NotApps = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "System", "Secure System", "Registry", "Memory Compression",
+    };
+
+    public static List<(string Name, double Amount)> MemoryUse() =>
+        Snapshot().Where(e => e.Pid != 0 && !NotApps.Contains(e.Name)).Select(e => (e.Name, (double)e.WorkingSet)).ToList();
+
+    public static Dictionary<int, string> Names()
+    {
+        var names = new Dictionary<int, string>();
+        foreach (var entry in Snapshot()) names[entry.Pid] = entry.Name;
+        return names;
+    }
+
+    public static List<Entry> Snapshot()
+    {
+        if (!Environment.Is64BitProcess) return []; // ProcessEntry has the 64-bit layout (Capsule ships only 64-bit builds)
+        var size = 1024 * 1024;
+        while (size <= MaxBufferBytes)
+        {
+            var buffer = Marshal.AllocHGlobal(size);
+            try
+            {
+                var status = NtQuerySystemInformation(SystemProcessInformation, buffer, size, out var needed);
+                if (status == InfoLengthMismatch)
+                {
+                    size = Math.Max(size * 2, needed + 256 * 1024); // processes may start while we resize
+                    continue;
+                }
+
+                return status == 0 ? Read(buffer, Math.Min(needed, size)) : [];
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Could not read the process list", ex);
+                return [];
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+        }
+
+        return [];
+    }
+
+    private static List<Entry> Read(IntPtr buffer, int length)
+    {
+        var list = new List<Entry>(512);
+        var entrySize = Marshal.SizeOf<ProcessEntry>();
+        var offset = 0;
+        while (offset >= 0 && offset + entrySize <= length)
+        {
+            var entry = Marshal.PtrToStructure<ProcessEntry>(buffer + offset);
+            var pid = (int)entry.UniqueProcessId;
+            var name = pid == 0 ? "Idle"
+                : entry.ImageName.Buffer == IntPtr.Zero ? ""
+                : Marshal.PtrToStringUni(entry.ImageName.Buffer, Math.Min(entry.ImageName.Length / 2, 260)) ?? "";
+            list.Add(new Entry(pid, name, entry.KernelTime + entry.UserTime, (long)(ulong)entry.WorkingSetSize));
+
+            if (entry.NextEntryOffset == 0) break;
+            offset += (int)entry.NextEntryOffset;
+        }
+
+        return list;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct UnicodeString
+    {
+        public ushort Length;
+        public ushort MaximumLength;
+        public IntPtr Buffer;
+    }
+
+    // SYSTEM_PROCESS_INFORMATION, up to the working set (the 64-bit layout; Capsule ships only 64-bit builds).
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ProcessEntry
+    {
+        public uint NextEntryOffset;
+        public uint NumberOfThreads;
+        public long WorkingSetPrivateSize;
+        public uint HardFaultCount;
+        public uint NumberOfThreadsHighWatermark;
+        public ulong CycleTime;
+        public long CreateTime;
+        public long UserTime;
+        public long KernelTime;
+        public UnicodeString ImageName;
+        public int BasePriority;
+        public IntPtr UniqueProcessId;
+        public IntPtr InheritedFromUniqueProcessId;
+        public uint HandleCount;
+        public uint SessionId;
+        public UIntPtr UniqueProcessKey;
+        public UIntPtr PeakVirtualSize;
+        public UIntPtr VirtualSize;
+        public uint PageFaultCount;
+        public UIntPtr PeakWorkingSetSize;
+        public UIntPtr WorkingSetSize;
+    }
+
+    [DllImport("ntdll.dll")]
+    private static extern int NtQuerySystemInformation(int infoClass, IntPtr buffer, int length, out int returnLength);
 }
 
 /// <summary>Performance counters read through PDH (the same source Task Manager uses).</summary>
@@ -271,11 +337,15 @@ internal sealed class Pdh : IDisposable
     private const uint FormatDouble = 0x00000200;
     private const uint FormatNoCap100 = 0x00008000;
     private const int MoreData = unchecked((int)0x800007D2);
+    private const uint MaxArrayBytes = 16 * 1024 * 1024;
+    private static bool _loggedTooBig;
 
     private readonly IntPtr _query;
     private readonly IntPtr _heatQuery;
+    private readonly IntPtr _cpuQuery;
     private readonly IntPtr _gpu;
     private readonly IntPtr _thermal;
+    private readonly IntPtr _cpu;
     private readonly bool _ok;
 
     public Pdh()
@@ -284,12 +354,20 @@ internal sealed class Pdh : IDisposable
         {
             _ok = PdhOpenQueryW(null, IntPtr.Zero, out _query) == 0;
             if (!_ok) return;
-            PdhAddEnglishCounterW(_query, @"\GPU Engine(*engtype_3D)\Utilization Percentage", IntPtr.Zero, out _gpu);
+            // Every engine of every GPU: GpuEngines works out which chip and engine is busiest.
+            PdhAddEnglishCounterW(_query, @"\GPU Engine(*)\Utilization Percentage", IntPtr.Zero, out _gpu);
             PdhCollectQueryData(_query);
             if (PdhOpenQueryW(null, IntPtr.Zero, out _heatQuery) == 0)
             {
                 PdhAddEnglishCounterW(_heatQuery, @"\Thermal Zone Information(*)\% Passive Limit", IntPtr.Zero, out _thermal);
                 PdhCollectQueryData(_heatQuery);
+            }
+
+            // Task Manager's CPU figure: it counts boost clocks, so it reads well above plain processor time.
+            if (PdhOpenQueryW(null, IntPtr.Zero, out _cpuQuery) == 0
+                && PdhAddEnglishCounterW(_cpuQuery, @"\Processor Information(_Total)\% Processor Utility", IntPtr.Zero, out _cpu) == 0)
+            {
+                PdhCollectQueryData(_cpuQuery);
             }
         }
         catch (Exception ex)
@@ -299,26 +377,20 @@ internal sealed class Pdh : IDisposable
         }
     }
 
-    /// <summary>Total 3D engine use (capped at 100) and the process using the most.</summary>
-    public (double Percent, int TopPid)? GpuLoad()
+    /// <summary>How busy the busiest GPU is (0 to 100) and how much each process used of its busiest engine.</summary>
+    public (double Percent, List<(int Pid, double Value)> Users)? GpuLoad()
     {
         if (!_ok || _gpu == IntPtr.Zero || PdhCollectQueryData(_query) != 0) return null;
         var items = Read(_gpu);
-        if (items is null) return null;
+        return items is null ? null : GpuEngines.Busiest(items);
+    }
 
-        var perProcess = new Dictionary<int, double>();
-        foreach (var (name, value) in items)
-        {
-            // Instance names look like "pid_1234_luid_..._engtype_3D".
-            if (!name.StartsWith("pid_", StringComparison.Ordinal)) continue;
-            var end = name.IndexOf('_', 4);
-            if (end < 0 || !int.TryParse(name.AsSpan(4, end - 4), out var pid)) continue;
-            perProcess[pid] = perProcess.GetValueOrDefault(pid) + value;
-        }
-
-        if (perProcess.Count == 0) return (0, 0);
-        var top = perProcess.MaxBy(p => p.Value);
-        return (Math.Min(100, perProcess.Values.Sum()), top.Key);
+    /// <summary>CPU use as Task Manager shows it (0 to 100) since the last call; null when the counter is missing.</summary>
+    public double? CpuUtility()
+    {
+        if (!_ok || _cpu == IntPtr.Zero || PdhCollectQueryData(_cpuQuery) != 0) return null;
+        if (PdhGetFormattedCounterValue(_cpu, FormatDouble, out _, out var value) != 0 || value.Status != 0) return null;
+        return Math.Clamp(value.Value, 0, 100);
     }
 
     /// <summary>Lowest "% passive limit" across thermal zones: 100 = full speed, lower = slowed down by heat.</summary>
@@ -334,13 +406,21 @@ internal sealed class Pdh : IDisposable
         if (!_ok) return;
         PdhCloseQuery(_query);
         if (_heatQuery != IntPtr.Zero) PdhCloseQuery(_heatQuery);
+        if (_cpuQuery != IntPtr.Zero) PdhCloseQuery(_cpuQuery);
     }
 
     private static List<(string Name, double Value)>? Read(IntPtr counter)
     {
         uint size = 0;
         var status = PdhGetFormattedCounterArrayW(counter, FormatDouble | FormatNoCap100, ref size, out _, IntPtr.Zero);
-        if (status != MoreData || size == 0 || size > 4 * 1024 * 1024) return null;
+        if (status != MoreData || size == 0) return null;
+        if (size > MaxArrayBytes)
+        {
+            // Every engine of every GPU for every app can add up on a PC with several graphics cards.
+            if (!_loggedTooBig) Log.Info($"A performance counter list was too large to read ({size / 1024} KB)");
+            _loggedTooBig = true;
+            return null;
+        }
 
         var buffer = Marshal.AllocHGlobal((int)size);
         try
@@ -388,6 +468,9 @@ internal sealed class Pdh : IDisposable
 
     [DllImport("pdh.dll", CharSet = CharSet.Unicode)]
     private static extern int PdhGetFormattedCounterArrayW(IntPtr counter, uint format, ref uint size, out uint count, IntPtr buffer);
+
+    [DllImport("pdh.dll")]
+    private static extern int PdhGetFormattedCounterValue(IntPtr counter, uint format, out uint type, out FormattedValue value);
 
     [DllImport("pdh.dll")]
     private static extern int PdhCloseQuery(IntPtr query);

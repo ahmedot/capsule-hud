@@ -27,14 +27,23 @@ Capsule is designed to have as little power as possible:
   the next update attempt).
 - **No administrator rights.** It runs as you (`asInvoker`), with no service, driver or scheduled task.
 - **No keyboard logging.** The lock-key and language HUDs only read whether Caps Lock / Num Lock are on and which keyboard
-  language is active. Capsule never sees what you type.
+  language is active. *Switch the keyboard back* (off by default) reads only Windows' idle time (how long ago the last
+  key press or mouse move was), the active window's keyboard language and Windows' default language, and then asks
+  the active window to change language, as Windows itself does. Apps running as administrator refuse that request and
+  keep their language. There is no keyboard hook: Capsule never sees what you type.
+- **Busy-app names come from Windows' process list** (each program's name, CPU time and memory, nothing else), read
+  only when a CPU, GPU or memory alert is about to show.
 - **Camera and mic alerts read Windows' own privacy records**; Capsule never opens the camera or microphone. A program
   writes its own description, so the alert also shows its file name when the description doesn't already include it.
+- **Window titles are only compared, never kept.** While the *Now playing* pop-up is on, each time the playing media
+  changes (it starts, pauses or moves to the next track), Capsule checks whether any visible window's title is the
+  playing title followed by `- YouTube`, to show a YouTube video without its title. It reads window titles only at
+  that moment and only to compare them; it doesn't store, log or send them.
 - **Local files only.** Settings live in `%APPDATA%\Capsule\settings.json` and a small log in `%LOCALAPPDATA%\Capsule\`.
   Updates are downloaded to `%LOCALAPPDATA%\Capsule\updates` and deleted once installed. A download that fails its
   checks is deleted at the next update attempt or when Capsule is uninstalled.
 - **Capsule's own Windows calls load system libraries only from System32.** A library resolver loads each of the
-  eight Windows libraries Capsule uses by its full System32 path and refuses any other name, so a DLL placed next to
+  nine Windows libraries Capsule uses by its full System32 path and refuses any other name, so a DLL placed next to
   Capsule.exe (for example in Downloads) is never used for them. (The .NET and WPF runtime files bundled inside
   Capsule.exe are unpacked and loaded by .NET itself.)
 - **The installer stays inside your user account.** It copies the program to `%LOCALAPPDATA%\Programs\Capsule`, adds a
@@ -130,6 +139,11 @@ including:
   Windows' standard dialogs
 - the camera and mic alert shows the program's real file name when its own description doesn't include it
 - the release build checks that it built exactly the commit it publishes
+
+**Release reviews.** Since 1.0.0, each release gets a focused review of just its changes by independent reviewers
+reading the source, instead of a full audit. Release 1.0.1 (the start-with-Windows fix) and release 1.1.0 (the process
+list behind the busy-app names, the YouTube check of window titles, and switching the keyboard back) had no
+vulnerabilities; their wording fixes to this page and the README were applied before release.
 
 Still open for a future audit: how the .NET runtime bundled inside Capsule.exe loads its own files. That needs a test
 on a sandboxed PC rather than a source review.

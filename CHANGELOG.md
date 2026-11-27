@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.0
+
+- **Switch the keyboard back to your usual language.** If you type in another language now and then, Capsule can switch the keyboard back to your usual one (Windows' default input language) once you haven't used the keyboard or mouse for 1, 2, 5, 10 or 30 minutes, and when you come back to a PC that was locked that long. Off by default; turn it on in Capsule's settings under *General › Keyboard*. It costs one check every 30 seconds while it's on and never sees what you type.
+- **YouTube in the Now playing pill.** A YouTube video playing in your browser now shows a video icon, *YouTube* and *Playing* or *Paused*, instead of the video's title and thumbnail, when the video's tab is the one showing in its browser window. It also pops up only when you play or pause, not every time the next video starts. YouTube Music keeps the normal pill with the song and artist.
+- **CPU and GPU alerts use Task Manager's figures.** The CPU figure is now the one Task Manager shows (it counts the extra speed a CPU reaches under load, so it often reads higher than before). The GPU figure is how busy your busiest graphics card is (video playback and copying don't count), so a PC with two graphics cards no longer adds them together.
+- **Fewer missed alerts.** A busy CPU or GPU alert now shows when the *average* over 30 seconds reaches the limit, so a CPU that bounces around 90% (95, 88, 97...) still counts, while a short spike still doesn't.
+- **The right app is named.** All of an app's processes are counted together (a browser runs dozens), protected programs such as games with anti-cheat are no longer skipped, and when no single app stands out the CPU and GPU pills say *Several apps are busy*. The memory alert also counts an app's processes together.
+
 ## 1.0.1
 
 - **Home page shows whether Capsule starts with Windows.** A new chip says *Start with Windows on* or *Start with Windows off*, so it's easy to notice when it's off, including when it was switched off in Task Manager.

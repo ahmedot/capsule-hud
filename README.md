@@ -57,7 +57,7 @@ through it.
 | <img src="docs/images/hud-headphones.png" width="340" alt="Headphones pill: Studio Headphones, Connected, 80%"> | **Headphones**: sound and calls move to your headphones as soon as they connect, and back when they leave (you can keep calls where they are). Shows battery when the headphones report it. |
 | <img src="docs/images/hud-controller.png" width="340" alt="Controller pill: Wireless Controller, Connected, 55%"> | **Game controllers**: USB and Bluetooth, with battery when the controller reports it. Steam Input's virtual controllers are ignored (this also hides controllers made by Valve; turn it off under *Device names*). |
 | <img src="docs/images/hud-volume.png" width="340" alt="Volume pill: Studio Headphones with a level bar at 64%"> | **Volume and mute**: a slim level bar for the device that's actually playing. The pill keeps the same size at every level. |
-| <img src="docs/images/hud-media.png" width="340" alt="Now playing pill: album art, Midnight Drive, Neon Avenue"> | **Now playing**: song, artist and album art when music starts, pauses or skips. |
+| <img src="docs/images/hud-media.png" width="340" alt="Now playing pill: album art, Midnight Drive, Neon Avenue"> | **Now playing**: song, artist and album art when music starts, pauses or skips. A YouTube video in your browser shows just *YouTube* and *Playing* or *Paused*, without the video's title (when its tab is the one showing). |
 | <img src="docs/images/hud-mic.png" width="340" alt="Microphone pill: USB Microphone, Muted"> | **Microphone mute**: shows when your microphone is muted or unmuted in Windows, for example with a mute key on your keyboard or headset. (Mute buttons inside call apps don't change it.) |
 | <img src="docs/images/hud-usb.png" width="340" alt="USB drive pill: Backup (E:), Connected, 128 GB"> | **USB drives**: name and size when a drive connects, and its name when it's removed. |
 | <img src="docs/images/hud-camera.png" width="340" alt="Camera pill: Camera in use, Video Call"> | **Camera or mic in use**: a privacy heads-up naming the app that starts (and stops) using your camera or microphone. |
@@ -66,7 +66,7 @@ through it.
 
 | | |
 |---|---|
-| <img src="docs/images/hud-language.png" width="340" alt="Keyboard language pill: العربية, AR"> | **Keyboard language**: shows the new language when you switch (English ⇄ العربية and more). |
+| <img src="docs/images/hud-language.png" width="340" alt="Keyboard language pill: العربية, AR"> | **Keyboard language**: shows the new language when you switch (English ⇄ العربية and more). If you only switch now and then, Capsule can switch back to your usual language once you haven't used the keyboard or mouse for a while (off by default; in Capsule's settings under *General › Keyboard*). |
 | <img src="docs/images/hud-capslock.png" width="340" alt="Caps Lock pill: Caps Lock, On"> | **Caps Lock / Num Lock**: on or off at a glance. |
 | <img src="docs/images/hud-brightness.png" width="340" alt="Brightness pill with a level bar at 70%"> | **Screen brightness** on laptops and tablets. |
 | <img src="docs/images/hud-network.png" width="340" alt="Network pill: Home Wi-Fi, Wi-Fi, Connected"> | **Network**: Wi-Fi or Ethernet connected, internet lost, VPN on or off. |
@@ -75,7 +75,7 @@ through it.
 
 | | |
 |---|---|
-| <img src="docs/images/hud-cpu.png" width="340" alt="CPU alert pill: CPU 97%, game.exe"> | **Busy CPU or GPU**: CPU at 90% or GPU at 95% for 30 seconds (short spikes are ignored), naming the app responsible. |
+| <img src="docs/images/hud-cpu.png" width="340" alt="CPU alert pill: CPU 97%, game.exe"> | **Busy CPU or GPU**: CPU at 90% or GPU at 95% on average over 30 seconds (short spikes are ignored), using Task Manager's CPU figure and naming the app responsible (or *Several apps are busy* when none stands out). |
 | <img src="docs/images/hud-gpu-hot.png" width="340" alt="Heat alert pill: GPU 88 °C, Running hot"> | **Heat**: GPU at 85 °C or hotter for 10 seconds (any brand whose driver reports its temperature to Windows), or Windows slowing the CPU down because of heat. |
 | <img src="docs/images/hud-charging.png" width="340" alt="Charging pill: Charging, Charger connected, 64%"> | **Battery and charger**: plugged in or unplugged, laptop battery at 20% and 10%, headphones or controller battery at 15%. |
 | | **Memory and disk**: memory 90% full for 30 seconds, or a drive larger than 32 GB (USB sticks are skipped) with less than 10 GB free. |
@@ -112,7 +112,7 @@ Capsule is built to barely show up in Task Manager's numbers:
 - **Waits instead of watching.** Almost everything is event-driven: Windows tells Capsule when a device, the volume,
   the network or the camera changes. Caps Lock, Num Lock and the keyboard language are a tiny check a few times a
   second while those pop-ups are on. System health is sampled every few seconds, with the heavier GPU reading every 15
-  seconds.
+  seconds. Switching the keyboard back is one check every 30 seconds, only while it's on.
 - **Windows Efficiency mode** (EcoQoS) and below-normal priority, so it never competes with your games.
 - **Draws on your GPU** (on PCs with graphics acceleration). Once the pill has opened, it's kept as one image on the
   graphics card until it closes. When it's hidden, nothing is drawn at all.
@@ -170,7 +170,8 @@ pop-up, that comes back as Capsule closes.
   download. Its SHA-256 checksum is verified before it's installed.
 - **No admin rights.** It runs as you, with no service, driver or scheduled task.
 - **No keyboard logging.** The lock-key and language HUDs only read whether Caps Lock / Num Lock are on and which
-  keyboard language is active. Capsule never sees what you type.
+  keyboard language is active. Switching the keyboard back only asks Windows how long ago you last typed or moved the
+  mouse, and which language is active. Capsule never sees what you type.
 - **Camera and mic alerts** read Windows' own privacy records (the ones shown in Windows Settings › Privacy & security). Capsule never
   opens your camera or microphone.
 - Settings are a small JSON file in `%APPDATA%\Capsule`. The log is in `%LOCALAPPDATA%\Capsule`.
@@ -178,8 +179,9 @@ pop-up, that comes back as Capsule closes.
   Settings › Apps entry, the start-with-Windows entry if switched on, and Capsule's own settings file and log.
 - Releases are built by GitHub Actions from the tagged source, with SHA-256 sums and signed build provenance.
   The code has been audited three times with Cloudflare's open-source
-  [security-audit skill](https://github.com/cloudflare/security-audit-skill), most recently just before 1.0.0. None
-  of the audits found a confirmed vulnerability, and every lead they raised was fixed. One question, how the bundled
+  [security-audit skill](https://github.com/cloudflare/security-audit-skill), most recently just before 1.0.0, and
+  each release since then gets a focused review of its changes (most recently 1.1.0). None found a confirmed
+  vulnerability, and every lead they raised was fixed. One question, how the bundled
   .NET runtime loads its own files, still needs a test on a sandboxed PC.
   [SECURITY.md](SECURITY.md#security-review) says what each audit covered.
 
@@ -255,12 +257,13 @@ Useful switches:
 | Volume and mic mute | `IAudioEndpointVolume` callbacks |
 | Battery level | `Windows.Devices.Enumeration` (Bluetooth battery property) |
 | Controllers | `Windows.Gaming.Input.RawGameController` |
-| Now playing | `Windows.Media.Control` |
+| Now playing | `Windows.Media.Control`; YouTube tabs by window title (`EnumWindows`, `GetWindowText`) |
 | Keyboard language, lock keys | `GetKeyboardLayout`, `GetKeyState` |
+| Switching the keyboard back | `GetLastInputInfo`, `SystemParametersInfo(SPI_GETDEFAULTINPUTLANG)`, `WM_INPUTLANGCHANGEREQUEST` |
 | Camera / mic in use | Windows privacy records (`CapabilityAccessManager`), with registry change notifications |
 | USB drives, brightness | WMI `Win32_VolumeChangeEvent`, `WmiMonitorBrightnessEvent` |
 | Network | `Windows.Networking.Connectivity` |
-| CPU, GPU, memory, heat | `GetSystemTimes`, PDH counters, `D3DKMTQueryAdapterInfo`, `GlobalMemoryStatusEx` |
+| CPU, GPU, memory, heat | PDH counters, `GetSystemTimes`, `NtQuerySystemInformation` (process list), `D3DKMTQueryAdapterInfo`, `GlobalMemoryStatusEx` |
 | HUD | WPF layered, click-through, no-activate window; GPU-cached; per-monitor DPI aware |
 | Settings | WPF with the Windows 11 (Fluent) theme |
 

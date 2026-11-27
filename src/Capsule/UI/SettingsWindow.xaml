@@ -331,7 +331,7 @@
             <UniformGrid Columns="2">
               <CheckBox x:Name="HudVolumeCheck" Content="Volume" Margin="0,5" />
               <CheckBox x:Name="HudMicCheck" Content="Microphone mute" Margin="0,5" />
-              <CheckBox x:Name="HudMediaCheck" Content="Now playing (song and artist)" Margin="0,5" />
+              <CheckBox x:Name="HudMediaCheck" Content="Now playing (music and videos)" Margin="0,5" />
               <CheckBox x:Name="HudKeyboardCheck" Content="Keyboard language" Margin="0,5" />
               <CheckBox x:Name="HudLockKeysCheck" Content="Caps Lock and Num Lock" Margin="0,5" />
               <CheckBox x:Name="HudBrightnessCheck" Content="Screen brightness" Margin="0,5" />
@@ -378,7 +378,7 @@
         <!-- ======== GENERAL ======== -->
         <StackPanel x:Name="PageGeneral" Visibility="Collapsed">
           <TextBlock Style="{StaticResource PageTitle}" Text="General" />
-          <TextBlock Style="{StaticResource PageSubtitle}" Text="Updates, startup and the look of this window." />
+          <TextBlock Style="{StaticResource PageSubtitle}" Text="Startup, keyboard, updates and the look of this window." />
 
           <Border Style="{StaticResource Card}" Margin="0,20,0,0">
             <StackPanel>
@@ -392,6 +392,22 @@
                   <ComboBoxItem Content="Same as Windows" Tag="System" />
                   <ComboBoxItem Content="Light" Tag="Light" />
                   <ComboBoxItem Content="Dark" Tag="Dark" />
+                </ComboBox>
+              </ui:SettingRow>
+            </StackPanel>
+          </Border>
+
+          <TextBlock Text="Keyboard" Style="{StaticResource SectionHeader}" />
+          <Border Style="{StaticResource Card}">
+            <StackPanel>
+              <ui:SettingRow x:Name="KeyboardBackRow" Glyph="&#xE765;" Title="Switch the keyboard back">
+                <ComboBox x:Name="KeyboardBackCombo" MinWidth="200" AutomationProperties.Name="Switch the keyboard back">
+                  <ComboBoxItem Content="Never" Tag="0" />
+                  <ComboBoxItem Content="After 1 minute" Tag="1" />
+                  <ComboBoxItem Content="After 2 minutes" Tag="2" />
+                  <ComboBoxItem Content="After 5 minutes" Tag="5" />
+                  <ComboBoxItem Content="After 10 minutes" Tag="10" />
+                  <ComboBoxItem Content="After 30 minutes" Tag="30" />
                 </ComboBox>
               </ui:SettingRow>
             </StackPanel>

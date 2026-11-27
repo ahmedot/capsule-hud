@@ -73,13 +73,14 @@ public partial class SettingsWindow : Window
             HudPowerCheck.IsChecked = s.HudPower;
             WarningsCaption.Text =
                 "Only when it lasts, not for short spikes. " +
-                $"CPU at {s.CpuAlertPercent}% or GPU at {s.GpuAlertPercent}% for 30 seconds · " +
+                $"CPU at {s.CpuAlertPercent}% or GPU at {s.GpuAlertPercent}% on average over 30 seconds · " +
                 $"GPU at {s.GpuTempAlertC} °C or the CPU slowed by heat for 10 seconds · " +
                 $"memory {s.MemoryAlertPercent}% full for 30 seconds · a drive with less than {s.DiskFreeAlertGb} GB free · " +
                 $"laptop battery at 20% and 10% · headphones or controller at {s.DeviceBatteryAlertPercent}%. " +
                 "Switching a warning off also stops its checks.";
             AutoUpdateToggle.IsChecked = s.AutoUpdateCheck;
             Select(AppThemeCombo, s.AppTheme.ToString());
+            ShowKeyboardBack(s.KeyboardBackMinutes);
             UpdateUpdateRow();
             HideOsdToggle.IsChecked = s.HideWindowsOsd;
             HideDuplicatesToggle.IsChecked = s.HideDuplicatePopups;
@@ -176,6 +177,15 @@ public partial class SettingsWindow : Window
 
         Closed += (_, _) => _previewWindow?.Close();
         Loaded += (_, _) => UpdateLook();
+
+        KeyboardBackCombo.SelectionChanged += (_, _) =>
+        {
+            if (_loading || KeyboardBackCombo.SelectedItem is not ComboBoxItem item) return;
+            if (int.TryParse((string)item.Tag, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var minutes))
+            {
+                _app.UpdateSettings(s => s.KeyboardBackMinutes = minutes);
+            }
+        };
 
         FallbackCombo.SelectionChanged += (_, _) =>
         {
@@ -411,6 +421,20 @@ public partial class SettingsWindow : Window
                 Content = remove,
             });
         }
+    }
+
+    // Named after Windows' default input language ("Switch the keyboard back to English"). With only one language
+    // there's nothing to switch back from, so the choice is grayed out (unless it was already on).
+    private void ShowKeyboardBack(int minutes)
+    {
+        var usual = KeyboardReturn.Usual()?.Name ?? "your usual language";
+        var several = KeyboardReturn.LanguageCount() >= 2;
+        KeyboardBackRow.Title = $"Switch the keyboard back to {usual}";
+        KeyboardBackRow.Description = several
+            ? $"For when you type in another language now and then: once you haven't used the keyboard or mouse for this long, Capsule switches back to {usual}."
+            : "Only one keyboard language is installed, so there's nothing to switch back from.";
+        KeyboardBackCombo.IsEnabled = several || minutes > 0;
+        Select(KeyboardBackCombo, minutes.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     // A keyboard app that shows its own lock-key pop-up: say so, and offer to open it to switch that off.

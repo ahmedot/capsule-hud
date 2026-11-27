@@ -27,6 +27,7 @@ public class HardeningTests
     [InlineData("user32.dll")]
     [InlineData("KERNEL32.DLL")]
     [InlineData("shcore")]
+    [InlineData("ntdll.dll")]
     public void System_libraries_load_from_system32(string name)
     {
         var handle = SystemLibraries.Resolve(name, typeof(SystemLibraries).Assembly, null);

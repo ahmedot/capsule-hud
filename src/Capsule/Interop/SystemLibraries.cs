@@ -13,7 +13,7 @@ internal static class SystemLibraries
 {
     private static readonly HashSet<string> Allowed = new(StringComparer.OrdinalIgnoreCase)
     {
-        "advapi32.dll", "gdi32.dll", "kernel32.dll", "ole32.dll", "pdh.dll", "psapi.dll", "shcore.dll", "user32.dll",
+        "advapi32.dll", "gdi32.dll", "kernel32.dll", "ntdll.dll", "ole32.dll", "pdh.dll", "psapi.dll", "shcore.dll", "user32.dll",
     };
 
 #pragma warning disable CA2255 // a module initializer is exactly right here: it must run before the first P/Invoke

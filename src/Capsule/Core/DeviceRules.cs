@@ -104,6 +104,7 @@ internal static class Glyphs
     public const string Play = "";
     public const string Pause = "";
     public const string Music = "";
+    public const string Video = ""; // a screen with a play arrow (YouTube)
     public const string Globe = "";
     public const string Camera = "";
     public const string Usb = "";

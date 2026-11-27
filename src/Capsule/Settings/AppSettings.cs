@@ -102,6 +102,12 @@ public sealed class AppSettings
     /// <summary>Experimental: keep the built-in Windows volume/brightness pop-up hidden.</summary>
     public bool HideWindowsOsd { get; set; } = true;
 
+    /// <summary>Minutes without keyboard or mouse use before the keyboard switches back to Windows' default language; 0 = never.</summary>
+    public int KeyboardBackMinutes { get; set; }
+
+    /// <summary>The choices offered in the settings window (0 = never).</summary>
+    public static readonly int[] KeyboardBackChoices = [0, 1, 2, 5, 10, 30];
+
     /// <summary>Hide a keyboard app's own Caps Lock / Num Lock pop-up so only Capsule's shows.</summary>
     public bool HideDuplicatePopups { get; set; } = true;
 
@@ -201,6 +207,8 @@ public sealed class AppSettings
         MemoryAlertPercent = Math.Clamp(MemoryAlertPercent, 50, 99);
         DiskFreeAlertGb = Math.Clamp(DiskFreeAlertGb, 1, 500);
         DeviceBatteryAlertPercent = Math.Clamp(DeviceBatteryAlertPercent, 5, 50);
+        // Only the choices the settings window offers, so what it shows is always what's in effect.
+        KeyboardBackMinutes = KeyboardBackMinutes <= 0 ? 0 : KeyboardBackChoices.Skip(1).MinBy(c => Math.Abs((long)c - KeyboardBackMinutes));
 
         if (IsWindowsAccent(HudAccent)) HudAccent = WindowsAccent;
         else if (!IsColor(HudAccent)) HudAccent = DefaultAccent;

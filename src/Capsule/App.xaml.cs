@@ -39,6 +39,8 @@ public partial class App : Application
     private SystemMonitor? _system;
     private PowerWatcher? _power;
     private KeyboardLanguageWatcher? _keyboard;
+    private KeyboardReturn? _keyboardReturn;
+    private DateTime? _lockedAt;
     private PrivacyWatcher? _privacy;
     private DriveWatcher? _drives;
     private NetworkWatcher? _network;
@@ -312,6 +314,8 @@ public partial class App : Application
         Keep(ref _brightness, hud && s.HudBrightness, CreateBrightness);
         Keep(ref _media, hud && s.HudMedia, CreateMedia);
         Keep(ref _keyboard, hud && s.HudKeyboard, CreateKeyboard);
+        // Not a pop-up, so it doesn't depend on the HUD being on; paused while the PC is locked like everything else.
+        Keep(ref _keyboardReturn, _sessionActive && s.KeyboardBackMinutes > 0, CreateKeyboardReturn);
         Keep(ref _privacy, hud && s.HudPrivacy, CreatePrivacy);
         Keep(ref _drives, hud && s.HudUsb, CreateDrives);
         Keep(ref _network, hud && s.HudNetwork, CreateNetwork);
@@ -374,10 +378,21 @@ public partial class App : Application
         w.Changed += media =>
         {
             _osdHider?.Arm();
-            if (Settings.HudMedia) Show(HudItems.Media(media.Title, media.Artist, media.Playing, media.Art));
+            if (Settings.HudMedia)
+            {
+                Show(media.YouTube ? HudItems.YouTube(media.Playing) : HudItems.Media(media.Title, media.Artist, media.Playing, media.Art));
+            }
         };
         w.Start();
         return w;
+    }
+
+    private KeyboardReturn CreateKeyboardReturn()
+    {
+        // Locked for at least the chosen time: you're back after a break, so switch back straight away (unlocking
+        // counts as typing, so the idle time alone would start over).
+        var switchNow = _lockedAt is { } lockedAt && DateTime.UtcNow - lockedAt >= TimeSpan.FromMinutes(Settings.KeyboardBackMinutes);
+        return new KeyboardReturn(Dispatcher, () => Settings.KeyboardBackMinutes, switchNow);
     }
 
     private KeyboardLanguageWatcher CreateKeyboard()
@@ -484,6 +499,7 @@ public partial class App : Application
             _system?.Dispose();
             _power?.Dispose();
             _keyboard?.Dispose();
+            _keyboardReturn?.Dispose();
             _privacy?.Dispose();
             _drives?.Dispose();
             _network?.Dispose();
@@ -670,9 +686,11 @@ public partial class App : Application
         {
             if (active == _sessionActive) return;
             _sessionActive = active;
+            if (!active) _lockedAt = DateTime.UtcNow;
             if (_switcher is not null) _switcher.Paused = !active;
             if (active) _switcher?.Rescan();
             ApplyWatchers(); // stops every pop-up watcher while locked, restarts them on unlock
+            if (active) _lockedAt = null;
             _osdHider?.SetEnabled(HideWindowsOsd);
 
             Log.Info(active ? "Session active again" : "Session locked or switched away; paused");
